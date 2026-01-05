@@ -1,6 +1,12 @@
 spring:
   application:
     name: pet-health-monitor
+  # --- 新增配置开始 (注意缩进对齐 datasource) ---
+  servlet:
+    multipart:
+      max-file-size: 10MB      # 单个文件最大限制
+      max-request-size: 10MB   # 整个请求最大限制
+  # --- 新增配置结束 ---
   datasource:
     url: jdbc:mysql://localhost:3306/pet_health_monitor?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
     username: root
@@ -27,8 +33,8 @@ mybatis-plus:
 
 server:
   port: 8080
-  servlet:
-    context-path: /api
+  # servlet:
+  # context-path: /api  <-- 已注释掉，解决路径重复导致的 404 问题
 
 jwt:
   secret: pet-health-monitor-secret-key-2024-very-long-secret-key-for-jwt-token-generation
@@ -39,4 +45,3 @@ logging:
   level:
     root: INFO
     com.petcare: DEBUG
-

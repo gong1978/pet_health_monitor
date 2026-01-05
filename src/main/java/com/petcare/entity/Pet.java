@@ -2,6 +2,7 @@ package com.petcare.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic; // [新增]
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -69,4 +70,11 @@ public class Pet {
      * 创建时间
      */
     private LocalDateTime createdAt;
+
+    /**
+     * 逻辑删除标识 (0:未删除, 1:已删除)
+     * [核心修改] 加上这个字段和注解，MyBatis-Plus 就会执行 UPDATE 而不是 DELETE
+     */
+    @TableLogic
+    private Integer deleted;
 }

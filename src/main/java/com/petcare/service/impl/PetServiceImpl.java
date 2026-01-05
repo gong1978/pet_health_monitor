@@ -1,5 +1,6 @@
 package com.petcare.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -7,8 +8,8 @@ import com.petcare.dto.PetCreateRequest;
 import com.petcare.dto.PetPageResponse;
 import com.petcare.dto.PetQueryRequest;
 import com.petcare.dto.PetUpdateRequest;
-import com.petcare.entity.Pet;
-import com.petcare.mapper.PetMapper;
+import com.petcare.entity.*;
+import com.petcare.mapper.*;
 import com.petcare.service.PetService;
 import com.petcare.service.UserPetService;
 import lombok.extern.slf4j.Slf4j;
@@ -29,9 +30,16 @@ public class PetServiceImpl extends ServiceImpl<PetMapper, Pet> implements PetSe
     @Autowired
     private UserPetService userPetService;
 
+    // 注入所有相关的 Mapper，用于级联删除
+    @Autowired private UserPetMapper userPetMapper;
+    @Autowired private SensorDataMapper sensorDataMapper;
+    @Autowired private BehaviorAnalysisMapper behaviorAnalysisMapper;
+    @Autowired private HealthReportMapper healthReportMapper;
+    @Autowired private AlertMapper alertMapper;
+    @Autowired private VetConsultationMapper vetConsultationMapper;
+
     @Override
     public PetPageResponse pageQuery(PetQueryRequest queryRequest) {
-        // 验证参数
         if (queryRequest.getPage() == null || queryRequest.getPage() < 1) {
             queryRequest.setPage(1);
         }
@@ -39,9 +47,7 @@ public class PetServiceImpl extends ServiceImpl<PetMapper, Pet> implements PetSe
             queryRequest.setSize(10);
         }
 
-        // 构建查询条件
         QueryWrapper<Pet> queryWrapper = new QueryWrapper<>();
-        
         if (queryRequest.getName() != null && !queryRequest.getName().isEmpty()) {
             queryWrapper.like("name", queryRequest.getName());
         }
@@ -54,15 +60,12 @@ public class PetServiceImpl extends ServiceImpl<PetMapper, Pet> implements PetSe
         if (queryRequest.getGender() != null && !queryRequest.getGender().isEmpty()) {
             queryWrapper.eq("gender", queryRequest.getGender());
         }
-        
-        // 按创建时间倒序
+
         queryWrapper.orderByDesc("created_at");
 
-        // 分页查询
         Page<Pet> page = new Page<>(queryRequest.getPage(), queryRequest.getSize());
         page = this.page(page, queryWrapper);
 
-        // 构建响应
         return PetPageResponse.builder()
                 .records(page.getRecords())
                 .total(page.getTotal())
@@ -74,45 +77,23 @@ public class PetServiceImpl extends ServiceImpl<PetMapper, Pet> implements PetSe
 
     @Override
     public Pet getPetById(Integer petId) {
-        if (petId == null) {
-            throw new RuntimeException("宠物ID不能为空");
-        }
-
+        if (petId == null) throw new RuntimeException("宠物ID不能为空");
         Pet pet = this.getById(petId);
-        if (pet == null) {
-            throw new RuntimeException("宠物不存在");
-        }
-        
+        if (pet == null) throw new RuntimeException("宠物不存在");
         return pet;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createPet(PetCreateRequest createRequest, Integer userId) {
-        // 验证参数
-        if (userId == null) {
-            throw new RuntimeException("用户ID不能为空");
-        }
-        
+        if (userId == null) throw new RuntimeException("用户ID不能为空");
         if (createRequest.getName() == null || createRequest.getName().trim().isEmpty()) {
             throw new RuntimeException("宠物名字不能为空");
         }
-        
         if (createRequest.getSpecies() == null || createRequest.getSpecies().trim().isEmpty()) {
             throw new RuntimeException("宠物物种不能为空");
         }
 
-        // 验证年龄
-        if (createRequest.getAge() != null && createRequest.getAge() < 0) {
-            throw new RuntimeException("宠物年龄不能为负数");
-        }
-
-        // 验证体重
-        if (createRequest.getWeight() != null && createRequest.getWeight() <= 0) {
-            throw new RuntimeException("宠物体重必须大于0");
-        }
-
-        // 构建实体
         Pet pet = Pet.builder()
                 .name(createRequest.getName().trim())
                 .species(createRequest.getSpecies().trim())
@@ -125,59 +106,30 @@ public class PetServiceImpl extends ServiceImpl<PetMapper, Pet> implements PetSe
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        boolean success = this.save(pet);
-        if (!success) {
+        if (!this.save(pet)) {
             throw new RuntimeException("创建宠物失败");
         }
 
-        // 创建用户-宠物关联关系
         try {
             userPetService.addUserPetRelation(userId, pet.getPetId());
-            log.info("创建宠物成功并建立用户关联: petId={}, petName={}, userId={}", 
-                    pet.getPetId(), pet.getName(), userId);
+            log.info("创建宠物成功并建立用户关联: petId={}, userId={}", pet.getPetId(), userId);
         } catch (Exception e) {
-            log.error("创建用户-宠物关联失败: petId={}, userId={}", pet.getPetId(), userId, e);
+            log.error("建立关联失败", e);
             throw new RuntimeException("创建宠物成功，但建立用户关联失败: " + e.getMessage());
         }
     }
 
     @Override
     public void updatePet(PetUpdateRequest updateRequest) {
-        // 验证参数
-        if (updateRequest.getPetId() == null) {
-            throw new RuntimeException("宠物ID不能为空");
-        }
+        if (updateRequest.getPetId() == null) throw new RuntimeException("宠物ID不能为空");
 
-        if (updateRequest.getName() == null || updateRequest.getName().trim().isEmpty()) {
-            throw new RuntimeException("宠物名字不能为空");
-        }
+        Pet existPet = getPetById(updateRequest.getPetId()); // 检查存在性
 
-        if (updateRequest.getSpecies() == null || updateRequest.getSpecies().trim().isEmpty()) {
-            throw new RuntimeException("宠物物种不能为空");
-        }
-
-        // 检查宠物是否存在
-        Pet existPet = getPetById(updateRequest.getPetId());
-        if (existPet == null) {
-            throw new RuntimeException("宠物不存在");
-        }
-
-        // 验证年龄
-        if (updateRequest.getAge() != null && updateRequest.getAge() < 0) {
-            throw new RuntimeException("宠物年龄不能为负数");
-        }
-
-        // 验证体重
-        if (updateRequest.getWeight() != null && updateRequest.getWeight() <= 0) {
-            throw new RuntimeException("宠物体重必须大于0");
-        }
-
-        // 构建更新实体
         Pet pet = Pet.builder()
                 .petId(updateRequest.getPetId())
-                .name(updateRequest.getName().trim())
-                .species(updateRequest.getSpecies().trim())
-                .breed(updateRequest.getBreed() != null ? updateRequest.getBreed().trim() : null)
+                .name(updateRequest.getName() != null ? updateRequest.getName().trim() : existPet.getName())
+                .species(updateRequest.getSpecies() != null ? updateRequest.getSpecies().trim() : existPet.getSpecies())
+                .breed(updateRequest.getBreed())
                 .gender(updateRequest.getGender())
                 .age(updateRequest.getAge())
                 .weight(updateRequest.getWeight())
@@ -185,54 +137,54 @@ public class PetServiceImpl extends ServiceImpl<PetMapper, Pet> implements PetSe
                 .imageUrl(updateRequest.getImageUrl())
                 .build();
 
-        boolean success = this.updateById(pet);
-        if (!success) {
+        if (!this.updateById(pet)) {
             throw new RuntimeException("更新宠物信息失败");
         }
-
         log.info("更新宠物信息成功: {}", pet.getName());
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deletePet(Integer petId) {
-        // 验证参数
-        if (petId == null) {
-            throw new RuntimeException("宠物ID不能为空");
-        }
+        if (petId == null) throw new RuntimeException("宠物ID不能为空");
 
-        // 检查宠物是否存在
+        // 检查是否存在
         Pet pet = this.getById(petId);
-        if (pet == null) {
-            throw new RuntimeException("宠物不存在");
-        }
+        if (pet == null) throw new RuntimeException("宠物不存在");
 
-        boolean success = this.removeById(petId);
-        if (!success) {
-            throw new RuntimeException("删除宠物失败");
-        }
+        log.info("开始级联删除宠物数据: petId={}", petId);
 
-        log.info("删除宠物成功: {}", pet.getName());
+        try {
+            // 级联删除关联数据（触发逻辑删除 update ... set deleted=1）
+            userPetMapper.delete(new LambdaQueryWrapper<UserPet>().eq(UserPet::getPetId, petId));
+            sensorDataMapper.delete(new LambdaQueryWrapper<SensorData>().eq(SensorData::getPetId, petId));
+            behaviorAnalysisMapper.delete(new LambdaQueryWrapper<BehaviorAnalysis>().eq(BehaviorAnalysis::getPetId, petId));
+            healthReportMapper.delete(new LambdaQueryWrapper<HealthReport>().eq(HealthReport::getPetId, petId));
+            alertMapper.delete(new LambdaQueryWrapper<Alert>().eq(Alert::getPetId, petId));
+            vetConsultationMapper.delete(new LambdaQueryWrapper<VetConsultation>().eq(VetConsultation::getPetId, petId));
+
+            // 删除宠物主体
+            // 注意：如果 Pet 实体没有 @TableLogic，这里是物理删除，可能会因为子表（逻辑删除）仍有 FK 引用而报错
+            // 建议给 Pet 实体加上 @TableLogic，或者确保子表也是物理删除
+            boolean success = this.removeById(petId);
+            if (!success) {
+                throw new RuntimeException("删除宠物主数据失败");
+            }
+            log.info("删除宠物成功: {}", pet.getName());
+        } catch (Exception e) {
+            // 这里的异常会被 GlobalExceptionHandler 捕获并处理成友好提示
+            log.error("删除失败", e);
+            throw e;
+        }
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void batchDeletePets(List<Integer> petIds) {
-        // 验证参数
-        if (petIds == null || petIds.isEmpty()) {
-            throw new RuntimeException("宠物ID列表不能为空");
+        if (petIds == null || petIds.isEmpty()) return;
+        for (Integer id : petIds) {
+            deletePet(id); // 复用单个删除逻辑
         }
-
-        // 检查是否存在无效的ID
-        for (Integer petId : petIds) {
-            if (petId == null) {
-                throw new RuntimeException("宠物ID列表中包含空值");
-            }
-        }
-
-        boolean success = this.removeByIds(petIds);
-        if (!success) {
-            throw new RuntimeException("批量删除宠物失败");
-        }
-
-        log.info("批量删除宠物成功，删除数量: {}", petIds.size());
+        log.info("批量删除完成，数量: {}", petIds.size());
     }
 }

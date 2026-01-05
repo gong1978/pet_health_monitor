@@ -20,7 +20,7 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping("/alerts")
+@RequestMapping("/alerts") // 注意：这里通常对应前端 api/alert.js 中的路径，保持复数形式与前端一致
 public class AlertController {
 
     @Autowired
@@ -47,14 +47,14 @@ public class AlertController {
     ) {
         Integer userId = (Integer) request.getAttribute("userId");
         Integer userRole = (Integer) request.getAttribute("role");
-        
+
         if (userId == null) {
             return Result.unauthorized("未授权");
         }
-        
-        log.info("分页查询异常预警: userId={}, role={}, petId={}, alertType={}, page={}, size={}", 
+
+        log.info("分页查询异常预警: userId={}, role={}, petId={}, alertType={}, page={}, size={}",
                 userId, userRole, petId, alertType, page, size);
-        
+
         try {
             AlertQueryRequest queryRequest = AlertQueryRequest.builder()
                     .petId(petId)
@@ -67,14 +67,14 @@ public class AlertController {
                     .page(page)
                     .size(size)
                     .build();
-            
+
             // 如果是宠物主人(role=3)，只能查看自己宠物的预警
-            if (userRole == 3) {
+            if (userRole != null && userRole == 3) {
                 // 获取该用户拥有的宠物ID列表
                 List<Integer> userPetIds = userPetService.getPetIdsByUserId(userId);
-                
+
                 if (userPetIds == null || userPetIds.isEmpty()) {
-                    // 用户没有宠物，返回空结果
+                    // 用户没有宠物，返回空结果，避免查询所有数据
                     return Result.success(AlertPageResponse.builder()
                             .records(List.of())
                             .total(0L)
@@ -83,16 +83,16 @@ public class AlertController {
                             .pages(0L)
                             .build());
                 }
-                
+
                 // 如果请求中指定了petId，需要验证该宠物是否属于当前用户
                 if (petId != null && !userPetIds.contains(petId)) {
                     return Result.fail(403, "无权查看该宠物的预警信息");
                 }
-                
-                // 设置用户的宠物ID列表，用于后续过滤
+
+                // 设置用户的宠物ID列表，用于 Service 层过滤
                 queryRequest.setUserPetIds(userPetIds);
             }
-            
+
             AlertPageResponse response = alertService.pageQuery(queryRequest);
             return Result.success(response);
         } catch (RuntimeException e) {
@@ -123,7 +123,7 @@ public class AlertController {
         if (userId == null) {
             return Result.unauthorized("未授权");
         }
-        
+
         log.info("创建异常预警: petId={}, alertType={}", createRequest.getPetId(), createRequest.getAlertType());
         try {
             alertService.createAlert(createRequest);
@@ -137,17 +137,17 @@ public class AlertController {
      * 更新异常预警
      */
     @PutMapping("/{alertId}")
-    public Result<String> updateAlert(@PathVariable Integer alertId, 
-                                    @RequestBody AlertUpdateRequest updateRequest,
-                                    HttpServletRequest request) {
+    public Result<String> updateAlert(@PathVariable Integer alertId,
+                                      @RequestBody AlertUpdateRequest updateRequest,
+                                      HttpServletRequest request) {
         Integer userId = (Integer) request.getAttribute("userId");
         if (userId == null) {
             return Result.unauthorized("未授权");
         }
-        
+
         // 设置预警ID
         updateRequest.setAlertId(alertId);
-        
+
         log.info("更新异常预警: {}", alertId);
         try {
             alertService.updateAlert(updateRequest);
@@ -166,7 +166,7 @@ public class AlertController {
         if (userId == null) {
             return Result.unauthorized("未授权");
         }
-        
+
         log.info("删除异常预警: {}", alertId);
         try {
             alertService.deleteAlert(alertId);
@@ -185,7 +185,7 @@ public class AlertController {
         if (userId == null) {
             return Result.unauthorized("未授权");
         }
-        
+
         log.info("批量删除异常预警: {}", alertIds);
         try {
             alertService.batchDeleteAlerts(alertIds);
@@ -204,7 +204,7 @@ public class AlertController {
         if (userId == null) {
             return Result.unauthorized("未授权");
         }
-        
+
         log.info("处理预警: alertId={}, resolvedBy={}", alertId, userId);
         try {
             alertService.resolveAlert(alertId, userId);
@@ -223,7 +223,7 @@ public class AlertController {
         if (userId == null) {
             return Result.unauthorized("未授权");
         }
-        
+
         log.info("批量处理预警: alertIds={}, resolvedBy={}", alertIds, userId);
         try {
             alertService.batchResolveAlerts(alertIds, userId);

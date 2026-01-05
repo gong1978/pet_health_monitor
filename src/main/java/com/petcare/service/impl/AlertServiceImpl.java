@@ -57,12 +57,12 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
 
         // 构建查询条件
         QueryWrapper<Alert> queryWrapper = new QueryWrapper<>();
-        
-        // 权限过滤：如果指定了用户的宠物ID列表，只查询这些宠物的预警
+
+        // [核心修改] 权限过滤：如果指定了用户的宠物ID列表，只查询这些宠物的预警
         if (queryRequest.getUserPetIds() != null && !queryRequest.getUserPetIds().isEmpty()) {
             queryWrapper.in("pet_id", queryRequest.getUserPetIds());
         }
-        
+
         if (queryRequest.getPetId() != null) {
             queryWrapper.eq("pet_id", queryRequest.getPetId());
         }
@@ -94,7 +94,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
                 throw new RuntimeException("结束时间格式错误，请使用 yyyy-MM-dd HH:mm:ss 格式");
             }
         }
-        
+
         // 按预警时间倒序，未处理的在前
         queryWrapper.orderByAsc("is_resolved").orderByDesc("created_at");
 
@@ -102,17 +102,18 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
         Page<Alert> page = new Page<>(queryRequest.getPage(), queryRequest.getSize());
         page = this.page(page, queryWrapper);
 
-        // 获取关联的宠物和用户信息
+        // 获取关联的宠物信息
         List<Alert> records = page.getRecords();
         Map<Integer, String> petNameMap = getPetNameMap(records);
+        // 获取处理人信息映射
         Map<Integer, String> resolverNameMap = getResolverNameMap(records);
 
-        // 转换为响应DTO
+        // 转换为响应 DTO 列表
         List<AlertPageResponse.AlertResponse> responseList = records.stream()
                 .map(alert -> AlertPageResponse.AlertResponse.builder()
                         .alertId(alert.getAlertId())
                         .petId(alert.getPetId())
-                        .petName(petNameMap.get(alert.getPetId()))
+                        .petName(petNameMap.getOrDefault(alert.getPetId(), "未知"))
                         .alertType(alert.getAlertType())
                         .alertMessage(alert.getAlertMessage())
                         .level(alert.getLevel())
@@ -123,7 +124,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
                         .build())
                 .collect(Collectors.toList());
 
-        // 构建响应
+        // 【关键】返回前端预期的封装对象
         return AlertPageResponse.builder()
                 .records(responseList)
                 .total(page.getTotal())
@@ -143,7 +144,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
         if (alert == null) {
             throw new RuntimeException("异常预警不存在");
         }
-        
+
         return alert;
     }
 
@@ -199,7 +200,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
             throw new RuntimeException("创建异常预警失败");
         }
 
-        log.info("创建异常预警成功: petId={}, alertType={}, alertId={}", 
+        log.info("创建异常预警成功: petId={}, alertType={}, alertId={}",
                 createRequest.getPetId(), createRequest.getAlertType(), alert.getAlertId());
     }
 
@@ -401,8 +402,8 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
 
         List<User> resolvers = userService.listByIds(resolverIds);
         return resolvers.stream()
-                .collect(Collectors.toMap(User::getUserId, 
-                    user -> user.getFullName() != null ? user.getFullName() : 
-                           (user.getUsername() != null ? user.getUsername() : "未知")));
+                .collect(Collectors.toMap(User::getUserId,
+                        user -> user.getFullName() != null ? user.getFullName() :
+                                (user.getUsername() != null ? user.getUsername() : "未知")));
     }
 }

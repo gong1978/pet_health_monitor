@@ -15,6 +15,7 @@ import com.petcare.service.PetService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -62,7 +63,7 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
                             .petId(behavior.getPetId())
                             .petName(petNameMap.getOrDefault(behavior.getPetId(), "未知"))
                             .behaviorType(behavior.getBehaviorType())
-                            .imageUrl(behavior.getImageUrl()) // 核心：回显给前端
+                            .imageUrl(behavior.getImageUrl())
                             .startTime(behavior.getStartTime() != null ? behavior.getStartTime().format(formatter) : "")
                             .endTime(behavior.getEndTime() != null ? behavior.getEndTime().format(formatter) : "")
                             .duration(duration)
@@ -80,52 +81,131 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
                 .build();
     }
 
+    /**
+     * 创建行为记录 (保留之前的 5分钟截断 + 仿AI随机逻辑)
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void createBehaviorAnalysis(BehaviorAnalysisCreateRequest createRequest) {
         if (createRequest.getPetId() == null) throw new RuntimeException("宠物ID不能为空");
 
         Pet pet = petService.getPetById(createRequest.getPetId());
         if (pet == null) throw new RuntimeException("关联的宠物不存在");
 
+        LocalDateTime newStartTime = parseTime(createRequest.getStartTime());
+        if (newStartTime == null) newStartTime = LocalDateTime.now();
+
+        // 1. 查找上一条未结束的行为
+        QueryWrapper<BehaviorAnalysis> lastRecordQuery = new QueryWrapper<>();
+        lastRecordQuery.eq("pet_id", createRequest.getPetId())
+                .isNull("end_time")
+                .ne(createRequest.getEndTime() != null, "behavior_id", -1)
+                .orderByDesc("start_time")
+                .last("LIMIT 1");
+
+        BehaviorAnalysis lastRecord = this.getOne(lastRecordQuery);
+
+        if (lastRecord != null && lastRecord.getStartTime().isBefore(newStartTime)) {
+            // [5分钟限制逻辑]
+            LocalDateTime maxAllowedEndTime = lastRecord.getStartTime().plusMinutes(5);
+            LocalDateTime finalEndTime = newStartTime;
+            if (newStartTime.isAfter(maxAllowedEndTime)) {
+                finalEndTime = maxAllowedEndTime;
+            }
+            lastRecord.setEndTime(finalEndTime);
+            this.updateById(lastRecord);
+            log.info("自动结束上一条行为: behaviorId={}, endTime={}", lastRecord.getBehaviorId(), finalEndTime);
+        }
+
+        // 2. [仿AI置信度]
+        Float finalConfidence = createRequest.getConfidence();
+        if (finalConfidence == null) {
+            float min = 0.85f, max = 0.99f;
+            finalConfidence = min + (float)(Math.random() * (max - min));
+            finalConfidence = (float)(Math.round(finalConfidence * 100)) / 100;
+        }
+
         BehaviorAnalysis behaviorAnalysis = BehaviorAnalysis.builder()
                 .petId(createRequest.getPetId())
                 .behaviorType(createRequest.getBehaviorType())
-                .imageUrl(createRequest.getImageUrl()) // 核心：保存
-                .startTime(parseTime(createRequest.getStartTime()))
+                .imageUrl(createRequest.getImageUrl())
+                .startTime(newStartTime)
                 .endTime(parseTime(createRequest.getEndTime()))
-                .confidence(createRequest.getConfidence())
+                .confidence(finalConfidence)
                 .build();
-
-        if (behaviorAnalysis.getStartTime() == null) behaviorAnalysis.setStartTime(LocalDateTime.now());
 
         if (!this.save(behaviorAnalysis)) throw new RuntimeException("创建失败");
         log.info("创建成功: behaviorId={}", behaviorAnalysis.getBehaviorId());
     }
 
+    /**
+     * [核心修复] 更新行为记录 - 增加无变更检测，防止 SQL 报错
+     */
     @Override
     public void updateBehaviorAnalysis(BehaviorAnalysisUpdateRequest updateRequest) {
         if (updateRequest.getBehaviorId() == null) throw new RuntimeException("ID不能为空");
 
+        // 1. 先查旧值，确保存在
+        BehaviorAnalysis existing = this.getById(updateRequest.getBehaviorId());
+        if (existing == null) throw new RuntimeException("记录不存在");
+
         BehaviorAnalysis.BehaviorAnalysisBuilder builder = BehaviorAnalysis.builder();
         builder.behaviorId(updateRequest.getBehaviorId());
 
-        if (updateRequest.getPetId() != null) builder.petId(updateRequest.getPetId());
-        if (StringUtils.hasText(updateRequest.getBehaviorType())) builder.behaviorType(updateRequest.getBehaviorType());
-        if (updateRequest.getConfidence() != null) builder.confidence(updateRequest.getConfidence());
+        // [新增] 变更标记
+        boolean isChanged = false;
 
-        // 关键修复：允许更新或保留图片路径，避免编辑后丢失
-        if (StringUtils.hasText(updateRequest.getImageUrl())) {
+        // 2. 逐个比对：只有值确实变了，才设置到 builder 里
+        if (updateRequest.getPetId() != null && !updateRequest.getPetId().equals(existing.getPetId())) {
+            builder.petId(updateRequest.getPetId());
+            isChanged = true;
+        }
+
+        if (StringUtils.hasText(updateRequest.getBehaviorType()) && !updateRequest.getBehaviorType().equals(existing.getBehaviorType())) {
+            builder.behaviorType(updateRequest.getBehaviorType());
+            isChanged = true;
+        }
+
+        if (updateRequest.getConfidence() != null && !updateRequest.getConfidence().equals(existing.getConfidence())) {
+            builder.confidence(updateRequest.getConfidence());
+            isChanged = true;
+        }
+
+        if (StringUtils.hasText(updateRequest.getImageUrl()) && !updateRequest.getImageUrl().equals(existing.getImageUrl())) {
             builder.imageUrl(updateRequest.getImageUrl());
+            isChanged = true;
         }
 
+        // [重点] 开始时间：解析后对比
         if (StringUtils.hasText(updateRequest.getStartTime())) {
-            builder.startTime(parseTime(updateRequest.getStartTime()));
-        }
-        if (StringUtils.hasText(updateRequest.getEndTime())) {
-            builder.endTime(parseTime(updateRequest.getEndTime()));
+            LocalDateTime newStart = parseTime(updateRequest.getStartTime());
+            if (newStart != null && !newStart.equals(existing.getStartTime())) {
+                builder.startTime(newStart);
+                isChanged = true;
+            }
         }
 
-        if (!this.updateById(builder.build())) throw new RuntimeException("更新失败");
+        // [重点] 结束时间：解析后对比
+        if (StringUtils.hasText(updateRequest.getEndTime())) {
+            LocalDateTime newEnd = parseTime(updateRequest.getEndTime());
+            // 如果原来的结束时间是 null，而现在传了新值，也算变更
+            // 如果原来有值，新值不同，也算变更
+            if (newEnd != null && !newEnd.equals(existing.getEndTime())) {
+                builder.endTime(newEnd);
+                isChanged = true;
+            }
+        }
+
+        // 3. [关键逻辑] 如果没有变更，直接返回成功，不执行 SQL
+        if (!isChanged) {
+            log.info("数据未变更，跳过数据库更新: behaviorId={}", updateRequest.getBehaviorId());
+            return;
+        }
+
+        // 4. 执行更新
+        if (!this.updateById(builder.build())) {
+            throw new RuntimeException("更新失败");
+        }
         log.info("更新成功: behaviorId={}", updateRequest.getBehaviorId());
     }
 

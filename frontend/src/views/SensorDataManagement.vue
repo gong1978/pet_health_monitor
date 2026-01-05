@@ -7,68 +7,67 @@
         </div>
       </template>
 
-      <!-- 搜索区域 -->
       <div class="search-form">
         <el-form :inline="true" :model="searchForm" class="demo-form-inline">
           <el-form-item label="宠物">
             <el-select
-              v-model="searchForm.petId"
-              placeholder="请选择宠物"
-              clearable
-              style="width: 150px"
+                v-model="searchForm.petId"
+                placeholder="请选择宠物"
+                clearable
+                style="width: 150px"
             >
               <el-option
-                v-for="pet in petList"
-                :key="pet.petId"
-                :label="pet.name"
-                :value="pet.petId"
+                  v-for="pet in petList"
+                  :key="pet.petId"
+                  :label="pet.name"
+                  :value="pet.petId"
               />
             </el-select>
           </el-form-item>
           <el-form-item label="心率范围">
             <el-input
-              v-model.number="searchForm.minHeartRate"
-              placeholder="最小值"
-              style="width: 80px"
-              type="number"
+                v-model.number="searchForm.minHeartRate"
+                placeholder="最小值"
+                style="width: 80px"
+                type="number"
             />
             <span style="margin: 0 5px;">-</span>
             <el-input
-              v-model.number="searchForm.maxHeartRate"
-              placeholder="最大值"
-              style="width: 80px"
-              type="number"
+                v-model.number="searchForm.maxHeartRate"
+                placeholder="最大值"
+                style="width: 80px"
+                type="number"
             />
             <span style="margin-left: 5px; color: #999;">bpm</span>
           </el-form-item>
           <el-form-item label="体温范围">
             <el-input
-              v-model.number="searchForm.minTemperature"
-              placeholder="最小值"
-              style="width: 80px"
-              type="number"
-              :step="0.1"
+                v-model.number="searchForm.minTemperature"
+                placeholder="最小值"
+                style="width: 80px"
+                type="number"
+                :step="0.1"
             />
             <span style="margin: 0 5px;">-</span>
             <el-input
-              v-model.number="searchForm.maxTemperature"
-              placeholder="最大值"
-              style="width: 80px"
-              type="number"
-              :step="0.1"
+                v-model.number="searchForm.maxTemperature"
+                placeholder="最大值"
+                style="width: 80px"
+                type="number"
+                :step="0.1"
             />
             <span style="margin-left: 5px; color: #999;">℃</span>
           </el-form-item>
           <el-form-item label="时间范围">
             <el-date-picker
-              v-model="timeRange"
-              type="datetimerange"
-              range-separator="至"
-              start-placeholder="开始时间"
-              end-placeholder="结束时间"
-              format="YYYY-MM-DD HH:mm:ss"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              @change="handleTimeRangeChange"
+                v-model="timeRange"
+                type="datetimerange"
+                range-separator="至"
+                start-placeholder="开始时间"
+                end-placeholder="结束时间"
+                format="YYYY-MM-DD HH:mm:ss"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                @change="handleTimeRangeChange"
             />
           </el-form-item>
           <el-form-item>
@@ -80,18 +79,17 @@
         </el-form>
       </div>
 
-      <!-- 操作按钮 -->
       <div class="table-header">
         <div class="left-panel">
           <el-button type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon>
             新增数据
           </el-button>
-          <el-button 
-            v-if="isAdmin || isVet"
-            type="danger" 
-            :disabled="multipleSelection.length === 0" 
-            @click="handleBatchDelete"
+          <el-button
+              v-if="isAdmin || isVet"
+              type="danger"
+              :disabled="multipleSelection.length === 0"
+              @click="handleBatchDelete"
           >
             <el-icon><Delete /></el-icon>
             批量删除
@@ -99,12 +97,11 @@
         </div>
       </div>
 
-      <!-- 数据表格 -->
       <el-table
-        :data="tableData"
-        v-loading="loading"
-        @selection-change="handleSelectionChange"
-        style="width: 100%"
+          :data="tableData"
+          v-loading="loading"
+          @selection-change="handleSelectionChange"
+          style="width: 100%"
       >
         <el-table-column v-if="isAdmin || isVet" type="selection" width="55" />
         <el-table-column prop="dataId" label="数据ID" width="80" />
@@ -133,8 +130,8 @@
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" @click="handleView(row)">详情</el-button>
             <el-popconfirm
-              title="确定要删除这条数据吗？"
-              @confirm="handleDelete(row)"
+                title="确定要删除这条数据吗？"
+                @confirm="handleDelete(row)"
             >
               <template #reference>
                 <el-button size="small" type="danger">删除</el-button>
@@ -144,86 +141,90 @@
         </el-table-column>
       </el-table>
 
-      <!-- 分页组件 -->
       <div class="pagination">
         <el-pagination
-          v-model:current-page="pageInfo.page"
-          v-model:page-size="pageInfo.size"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="pageInfo.total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
+            v-model:current-page="pageInfo.page"
+            v-model:page-size="pageInfo.size"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="pageInfo.total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
         />
       </div>
     </el-card>
 
-    <!-- 新增/编辑对话框 -->
     <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="500px"
-      :close-on-click-modal="false"
+        v-model="dialogVisible"
+        :title="dialogTitle"
+        width="500px"
+        :close-on-click-modal="false"
     >
       <el-form
-        ref="sensorDataFormRef"
-        :model="sensorDataForm"
-        :rules="rules"
-        label-width="100px"
+          ref="sensorDataFormRef"
+          :model="sensorDataForm"
+          :rules="rules"
+          label-width="100px"
       >
         <el-form-item label="宠物" prop="petId">
           <el-select v-model="sensorDataForm.petId" placeholder="请选择宠物" style="width: 100%">
             <el-option
-              v-for="pet in petList"
-              :key="pet.petId"
-              :label="pet.name"
-              :value="pet.petId"
+                v-for="pet in petList"
+                :key="pet.petId"
+                :label="pet.name"
+                :value="pet.petId"
             />
           </el-select>
         </el-form-item>
         <el-form-item label="心率" prop="heartRate">
-          <el-input-number 
-            v-model="sensorDataForm.heartRate" 
-            :min="0" 
-            :max="300" 
-            controls-position="right"
-            placeholder="请输入心率"
-            style="width: 100%"
+          <el-input-number
+              v-model="sensorDataForm.heartRate"
+              :min="0"
+              :max="300"
+              controls-position="right"
+              placeholder="请输入心率"
+              style="width: 100%"
           />
           <span style="margin-left: 10px; color: #999;">bpm (0-300)</span>
         </el-form-item>
         <el-form-item label="体温" prop="temperature">
-          <el-input-number 
-            v-model="sensorDataForm.temperature" 
-            :min="30" 
-            :max="45" 
-            :precision="1"
-            :step="0.1"
-            controls-position="right"
-            placeholder="请输入体温"
-            style="width: 100%"
+          <el-input-number
+              v-model="sensorDataForm.temperature"
+              :min="30"
+              :max="45"
+              :precision="1"
+              :step="0.1"
+              controls-position="right"
+              placeholder="请输入体温"
+              style="width: 100%"
           />
           <span style="margin-left: 10px; color: #999;">℃ (30-45)</span>
         </el-form-item>
-        <el-form-item label="活动量" prop="activity">
-          <el-input-number 
-            v-model="sensorDataForm.activity" 
-            :min="0" 
-            :max="50000" 
-            controls-position="right"
-            placeholder="请输入活动量"
-            style="width: 100%"
-          />
-          <span style="margin-left: 10px; color: #999;">步数或指数</span>
+
+        <el-form-item label="活动量">
+          <div v-if="!isEdit" style="color: #E6A23C; display: flex; align-items: center; padding-top: 5px;">
+            <el-icon style="margin-right: 5px;"><InfoFilled /></el-icon>
+            <span>将由系统自动模拟生成 (0-2000)</span>
+          </div>
+          <div v-else>
+            <el-input-number
+                v-model="sensorDataForm.activity"
+                disabled
+                controls-position="right"
+                style="width: 100%"
+            />
+            <span style="margin-left: 10px; color: #999;">(历史数据不可修改)</span>
+          </div>
         </el-form-item>
+
         <el-form-item label="采集时间" prop="collectedAt">
           <el-date-picker
-            v-model="sensorDataForm.collectedAt"
-            type="datetime"
-            placeholder="选择采集时间"
-            format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DD HH:mm:ss"
-            style="width: 100%"
+              v-model="sensorDataForm.collectedAt"
+              type="datetime"
+              placeholder="选择采集时间"
+              format="YYYY-MM-DD HH:mm:ss"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              style="width: 100%"
           />
           <div style="color: #999; font-size: 12px; margin-top: 5px;">
             留空则使用当前时间
@@ -240,7 +241,6 @@
       </template>
     </el-dialog>
 
-    <!-- 详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="数据详情" width="500px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="数据ID">{{ viewData.dataId }}</el-descriptions-item>
@@ -257,8 +257,8 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
-import { getSensorData, getSensorDataById, createSensorData, updateSensorData, deleteSensorData, batchDeleteSensorData } from '@/api/sensorData'
+import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue' // [新增] 引入 InfoFilled 图标
+import { getSensorData, createSensorData, updateSensorData, deleteSensorData, batchDeleteSensorData } from '@/api/sensorData'
 import { getPets } from '@/api/pet'
 import { getMyPets } from '@/api/userPet'
 import { useAuthStore } from '@/stores/auth'
@@ -321,48 +321,28 @@ const rules = {
 const dialogTitle = computed(() => isEdit.value ? '编辑数据' : '新增数据')
 
 // 用户角色判断
-const isAdmin = computed(() => {
-  const role = authStore.userInfo?.role
-  console.log('判断管理员权限，当前role:', role)
-  return role === 1
-})
-
-const isVet = computed(() => {
-  const role = authStore.userInfo?.role
-  console.log('判断兽医权限，当前role:', role)
-  return role === 2
-})
-
+const isAdmin = computed(() => authStore.userInfo?.role === 1)
+const isVet = computed(() => authStore.userInfo?.role === 2)
 const isPetOwner = computed(() => {
   const role = authStore.userInfo?.role
-  const result = role === 3 || role === 0 || (!isAdmin.value && !isVet.value)
-  console.log('判断宠物主人权限，当前role:', role, '结果:', result)
-  return result
+  return role === 3 || role === 0 || (!isAdmin.value && !isVet.value)
 })
 
 // 获取宠物列表
 const fetchPetList = async () => {
   try {
-    console.log('开始获取宠物列表，当前用户角色:', { isAdmin: isAdmin.value, isVet: isVet.value, isPetOwner: isPetOwner.value })
-    
     let response
     if (isPetOwner.value) {
       // 宠物主人：只获取自己关联的宠物
-      console.log('宠物主人调用 getMyPets()')
       response = await getMyPets()
-      console.log('getMyPets() 响应:', response)
       if (response.code === 200) {
         petList.value = response.data || []
-        console.log('宠物主人获取到宠物列表:', petList.value)
       }
     } else {
       // 管理员和兽医：获取所有宠物
-      console.log('管理员/兽医调用 getPets()')
       response = await getPets({ page: 1, size: 1000 })
-      console.log('getPets() 响应:', response)
       if (response.code === 200) {
         petList.value = response.data.records || []
-        console.log('管理员/兽医获取到宠物列表:', petList.value)
       }
     }
   } catch (error) {
@@ -375,66 +355,38 @@ const fetchPetList = async () => {
 const fetchSensorData = async () => {
   loading.value = true
   try {
-    console.log('当前用户信息:', authStore.userInfo)
-    console.log('用户角色判断:', { isAdmin: isAdmin.value, isVet: isVet.value, isPetOwner: isPetOwner.value })
-    console.log('宠物列表:', petList.value)
-    
     if (isPetOwner.value) {
       // 宠物主人：只获取自己宠物的数据
       const userPetIds = petList.value.map(pet => pet.petId || pet.id)
-      console.log('宠物主人的宠物ID列表:', userPetIds)
-      
+
       if (userPetIds.length === 0) {
-        // 如果没有宠物，显示空数据
-        console.log('宠物主人没有关联宠物，显示空数据')
         tableData.value = []
         pageInfo.total = 0
         return
       }
-      
-      // 先尝试使用petIds参数过滤
+
+      // 前端过滤逻辑（因为后端接口可能不支持 petIds 参数）
       let params = {
         ...searchForm,
-        petIds: userPetIds, // 只查询自己宠物的数据
-        page: pageInfo.page,
-        size: pageInfo.size
+        page: 1,
+        size: 1000 // 获取较多数据进行前端过滤
       }
-      console.log('宠物主人查询参数（带petIds）:', params)
-      
-      let response = await getSensorData(params)
-      
-      // 如果后端不支持petIds参数，就获取所有数据然后前端过滤
-      if (response.code !== 200 || !response.data) {
-        console.log('使用petIds参数失败，尝试获取所有数据进行前端过滤')
-        params = {
-          ...searchForm,
-          page: 1,
-          size: 1000 // 获取更多数据用于过滤
-        }
-        response = await getSensorData(params)
-      }
-      
+
+      const response = await getSensorData(params)
       if (response.code === 200) {
         let allRecords = response.data.records || []
-        console.log('获取到的所有数据:', allRecords)
-        
-        // 前端过滤：只保留用户宠物的数据
-        const filteredRecords = allRecords.filter(record => {
-          const recordPetId = record.petId || record.pet_id
-          const isMatch = userPetIds.includes(recordPetId)
-          console.log(`记录 ${record.dataId}: petId=${recordPetId}, 是否匹配=${isMatch}`)
-          return isMatch
-        })
-        
-        console.log('过滤后的数据:', filteredRecords)
-        
-        // 手动分页
+
+        // 过滤
+        const filteredRecords = allRecords.filter(record =>
+            userPetIds.includes(record.petId || record.pet_id)
+        )
+
+        // 分页
         const total = filteredRecords.length
         const start = (pageInfo.page - 1) * pageInfo.size
         const end = start + pageInfo.size
-        const paginatedRecords = filteredRecords.slice(start, end)
-        
-        tableData.value = paginatedRecords
+
+        tableData.value = filteredRecords.slice(start, end)
         pageInfo.total = total
       }
     } else {
@@ -444,11 +396,8 @@ const fetchSensorData = async () => {
         page: pageInfo.page,
         size: pageInfo.size
       }
-      console.log('管理员/兽医查询参数:', params)
-      
       const response = await getSensorData(params)
       if (response.code === 200) {
-        console.log('管理员/兽医获取到的数据:', response.data)
         tableData.value = response.data.records || []
         pageInfo.total = response.data.total || 0
       }
@@ -519,6 +468,8 @@ const handleSelectionChange = (selection) => {
 const handleAdd = () => {
   isEdit.value = false
   resetForm()
+  // 新增时清空 activity，触发后端自动生成
+  sensorDataForm.activity = null
   dialogVisible.value = true
 }
 
@@ -555,12 +506,11 @@ const handleDelete = async (row) => {
 
 // 批量删除
 const handleBatchDelete = async () => {
-  // 权限检查
   if (!isAdmin.value && !isVet.value) {
     ElMessage.error('您没有权限批量删除数据')
     return
   }
-  
+
   if (multipleSelection.value.length === 0) {
     ElMessage.warning('请选择要删除的数据')
     return
@@ -600,7 +550,7 @@ const handleSubmit = async () => {
           ElMessage.success('更新数据成功')
         } else {
           await createSensorData(data)
-          ElMessage.success('创建数据成功')
+          ElMessage.success('创建数据成功 (活动量已自动生成)')
         }
 
         dialogVisible.value = false
@@ -631,7 +581,6 @@ const resetForm = () => {
 
 // 组件挂载时获取数据
 onMounted(async () => {
-  // 先获取宠物列表，再获取传感器数据
   await fetchPetList()
   fetchSensorData()
 })

@@ -112,11 +112,17 @@
           <template #default="{ row }">
             <el-image
                 v-if="row.imageUrl"
-                :src="row.imageUrl"
-                :preview-src-list="[row.imageUrl]"
+                :src="getImageUrl(row.imageUrl)"
+                :preview-src-list="[getImageUrl(row.imageUrl)]"
                 style="width: 50px; height: 50px; border-radius: 4px;"
                 fit="cover"
-            />
+            >
+              <template #error>
+                <div class="image-slot" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; background: #f5f7fa; color: #909399;">
+                  <el-icon><Picture /></el-icon>
+                </div>
+              </template>
+            </el-image>
             <span v-else style="color:#ccc">无图</span>
           </template>
         </el-table-column>
@@ -201,19 +207,21 @@
           <div class="upload-container">
             <el-upload
                 class="avatar-uploader"
-                action="/api/files/upload"
+                :action="uploadUrl"
                 :headers="uploadHeaders"
+                name="file"
                 :show-file-list="false"
                 :on-success="handleUploadSuccess"
+                :on-error="handleUploadError"
                 :before-upload="beforeUpload"
             >
-              <img v-if="behaviorForm.imageUrl" :src="behaviorForm.imageUrl" class="avatar" />
+              <img v-if="behaviorForm.imageUrl" :src="getImageUrl(behaviorForm.imageUrl)" class="avatar" />
               <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
             </el-upload>
             <div class="upload-tip">
               <el-alert
                   v-if="!isEdit"
-                  title="AI 识别提示"
+                  title="AI 识别提示: 上传图片后将自动识别行为"
                   type="info"
                   :closable="false"
                   show-icon
@@ -283,15 +291,23 @@
         </el-form-item>
 
         <el-form-item label="置信度">
-          <el-slider
-              v-model="behaviorForm.confidence"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              :format-tooltip="formatTooltip"
-              style="width: 300px"
-          />
-          <span style="margin-left: 10px;">{{ behaviorForm.confidence?.toFixed(2) || 0 }}</span>
+          <div v-if="behaviorForm.confidence === null" style="display: flex; align-items: center; gap: 10px;">
+            <el-tag type="success" effect="dark">AI 自动生成</el-tag>
+            <span style="font-size: 12px; color: #999;">(后台将随机生成 85%~99% 的可信度)</span>
+            <el-button type="primary" link @click="behaviorForm.confidence = 0.90">手动调整</el-button>
+          </div>
+          <div v-else style="display: flex; align-items: center; width: 100%; gap: 10px;">
+            <el-slider
+                v-model="behaviorForm.confidence"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                style="flex: 1;"
+                :format-tooltip="formatTooltip"
+            />
+            <span style="width: 40px;">{{ (behaviorForm.confidence * 100).toFixed(0) }}%</span>
+            <el-button type="info" link @click="behaviorForm.confidence = null">重置为自动</el-button>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -307,8 +323,8 @@
     <el-dialog v-model="detailDialogVisible" title="行为记录详情" width="600px">
       <div style="text-align: center; margin-bottom: 20px;" v-if="viewBehavior.imageUrl">
         <el-image
-            :src="viewBehavior.imageUrl"
-            :preview-src-list="[viewBehavior.imageUrl]"
+            :src="getImageUrl(viewBehavior.imageUrl)"
+            :preview-src-list="[getImageUrl(viewBehavior.imageUrl)]"
             style="max-width: 300px; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);"
         />
       </div>
@@ -347,7 +363,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, Picture } from '@element-plus/icons-vue'
 import { getBehaviorAnalysis, createBehaviorAnalysis, updateBehaviorAnalysis, deleteBehaviorAnalysis, batchDeleteBehaviorAnalysis } from '@/api/behaviorAnalysis'
 import { getPets } from '@/api/pet'
 import { getMyPets } from '@/api/userPet'
@@ -387,14 +403,14 @@ const pageInfo = reactive({
   total: 0
 })
 
-// 行为记录表单
+// 行为记录表单 - confidence 初始为 null
 const behaviorForm = reactive({
   behaviorId: null,
   petId: null,
   behaviorType: '',
   startTime: '',
   endTime: '',
-  confidence: 0.8,
+  confidence: null, // null 表示自动生成
   imageUrl: '',
   description: ''
 })
@@ -419,10 +435,21 @@ const isPetOwner = computed(() => {
   return role === 3 || role === 0 || (!isAdmin.value && !isVet.value)
 })
 
+// [核心修复] 配置上传请求头
 const uploadHeaders = computed(() => {
   const token = authStore.token || localStorage.getItem('token')
-  return token ? { 'token': token } : {}
+  return token ? { 'Authorization': `Bearer ${token}` } : {}
 })
+
+// [核心修复] 配置上传接口地址
+const uploadUrl = 'http://localhost:8080/files/upload?type=behavior'
+
+// [核心修复] 通用图片路径处理函数
+const getImageUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  return `http://localhost:8080${url}`
+}
 
 // 映射表
 const getBehaviorTypeName = (type) => {
@@ -455,8 +482,12 @@ const behaviorKeywords = {
 const beforeUpload = (rawFile) => {
   const isImg = rawFile.type === 'image/jpeg' || rawFile.type === 'image/png';
   if (!isImg) ElMessage.error('图片必须是 JPG 或 PNG 格式!')
-  if (rawFile.size / 1024 / 1024 > 5) ElMessage.error('图片大小不能超过 5MB!')
-  return isImg && (rawFile.size / 1024 / 1024 <= 5)
+  // 前端限制10MB，配合后端
+  if (rawFile.size / 1024 / 1024 > 10) {
+    ElMessage.error('图片大小不能超过 10MB!')
+    return false
+  }
+  return true
 }
 
 /**
@@ -467,8 +498,8 @@ const handleUploadSuccess = (response) => {
   if (response.code === 200 || response.code === 1) {
     const data = response.data
 
-    // 1. 设置图片路径（响应式更新）
-    behaviorForm.imageUrl = data.url
+    // 1. 设置图片路径
+    behaviorForm.imageUrl = data.url || data
 
     // 2. 识别文件名并匹配行为
     const rawResult = data.recognizedBehavior || ''
@@ -483,9 +514,10 @@ const handleUploadSuccess = (response) => {
     if (matchedType) {
       behaviorForm.behaviorType = matchedType
       behaviorForm.description = `【AI智能识别】系统检测到画面中存在 [${getBehaviorTypeName(matchedType)}] 行为。`
-      behaviorForm.confidence = 0.95
+      // 这里不强制设置 confidence，保持 null 让后端随机生成，或者保留用户之前的设置
+      // behaviorForm.confidence = 0.95
 
-      // [关键修改]：手动触发校验，清除红框提示
+      // 手动触发校验，清除红框提示
       nextTick(() => {
         if (behaviorFormRef.value) {
           behaviorFormRef.value.validateField(['behaviorType', 'imageUrl'])
@@ -494,7 +526,6 @@ const handleUploadSuccess = (response) => {
       ElMessage.success(`AI 识别成功：${getBehaviorTypeName(matchedType)}`)
     } else {
       behaviorForm.description = `已上传抓拍：${rawResult}。请手动确认行为。`
-      // 仅清除图片项的红框
       nextTick(() => {
         if (behaviorFormRef.value) behaviorFormRef.value.validateField('imageUrl')
       })
@@ -505,6 +536,27 @@ const handleUploadSuccess = (response) => {
   } else {
     ElMessage.error(response.message || '上传失败')
   }
+}
+
+/**
+ * [核心修复] 上传失败回调 - 捕获文件过大等错误
+ */
+const handleUploadError = (error) => {
+  console.error('上传失败详情:', error)
+  let msg = '上传请求失败'
+
+  if (error.status === 404) {
+    msg = '后端接口未找到 (404)，请检查 FileController'
+  } else if (error.status === 401) {
+    msg = '登录已过期 (401)，请重新登录'
+  } else if (error.status === 500) {
+    // 可能是文件过大导致后端抛出 MaxUploadSizeExceededException
+    msg = '服务器错误 (500)：可能是文件过大或路径错误，请查看后端日志'
+  } else if (error.message && error.message.includes('Network Error')) {
+    msg = '无法连接到服务器，请确保后端已启动 (端口8080)'
+  }
+
+  ElMessage.error(msg)
 }
 
 const fetchPetList = async () => {
@@ -548,13 +600,19 @@ const handleReset = () => {
 const handleSizeChange = (size) => { pageInfo.size = size; handleSearch() }
 const handleCurrentChange = (page) => { pageInfo.page = page; fetchBehaviorAnalysis() }
 const handleSelectionChange = (selection) => multipleSelection.value = selection
-const handleAdd = () => { isEdit.value = false; resetForm(); dialogVisible.value = true }
+
+const handleAdd = () => {
+  isEdit.value = false;
+  resetForm();
+  dialogVisible.value = true
+}
 
 const handleEdit = (row) => {
   isEdit.value = true
   Object.assign(behaviorForm, {
     behaviorId: row.behaviorId, petId: row.petId, behaviorType: row.behaviorType,
-    startTime: row.startTime, endTime: row.endTime || '', confidence: row.confidence || 0.8,
+    startTime: row.startTime, endTime: row.endTime || '',
+    confidence: row.confidence, // 保持原值
     imageUrl: row.imageUrl || '', description: row.description || ''
   })
   dialogVisible.value = true
@@ -597,7 +655,8 @@ const handleSubmit = async () => {
 }
 
 const resetForm = () => {
-  Object.assign(behaviorForm, { behaviorId: null, petId: null, behaviorType: '', startTime: '', endTime: '', confidence: 0.8, imageUrl: '', description: '' })
+  // confidence 设为 null，触发 AI 随机
+  Object.assign(behaviorForm, { behaviorId: null, petId: null, behaviorType: '', startTime: '', endTime: '', confidence: null, imageUrl: '', description: '' })
   if (behaviorFormRef.value) behaviorFormRef.value.clearValidate()
 }
 
@@ -611,7 +670,9 @@ onMounted(async () => {
 .behavior-analysis-management { padding: 20px; }
 .page-container {
   .card-header {
-    display: flex; justify-content: space-between; align-items: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     .card-title { font-size: 18px; font-weight: 600; color: #333; }
   }
 }

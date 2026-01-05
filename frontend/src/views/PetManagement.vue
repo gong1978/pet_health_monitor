@@ -7,23 +7,22 @@
         </div>
       </template>
 
-      <!-- 搜索区域 -->
       <div class="search-form">
         <el-form :inline="true" :model="searchForm" class="demo-form-inline">
           <el-form-item label="宠物名字">
             <el-input
-              v-model="searchForm.name"
-              placeholder="请输入宠物名字"
-              clearable
-              style="width: 200px"
+                v-model="searchForm.name"
+                placeholder="请输入宠物名字"
+                clearable
+                style="width: 200px"
             />
           </el-form-item>
           <el-form-item label="物种">
             <el-select
-              v-model="searchForm.species"
-              placeholder="请选择物种"
-              clearable
-              style="width: 150px"
+                v-model="searchForm.species"
+                placeholder="请选择物种"
+                clearable
+                style="width: 150px"
             >
               <el-option label="狗" value="狗" />
               <el-option label="猫" value="猫" />
@@ -34,10 +33,10 @@
           </el-form-item>
           <el-form-item label="性别">
             <el-select
-              v-model="searchForm.gender"
-              placeholder="请选择性别"
-              clearable
-              style="width: 120px"
+                v-model="searchForm.gender"
+                placeholder="请选择性别"
+                clearable
+                style="width: 120px"
             >
               <el-option label="雄性" value="雄性" />
               <el-option label="雌性" value="雌性" />
@@ -52,18 +51,17 @@
         </el-form>
       </div>
 
-      <!-- 操作按钮 - 根据用户角色显示不同操作 -->
       <div class="table-header">
         <div class="left-panel">
           <el-button type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon>
             新增宠物
           </el-button>
-          <el-button 
-            v-if="isAdmin || isVet"
-            type="danger" 
-            :disabled="multipleSelection.length === 0" 
-            @click="handleBatchDelete"
+          <el-button
+              v-if="isAdmin || isVet"
+              type="danger"
+              :disabled="multipleSelection.length === 0"
+              @click="handleBatchDelete"
           >
             <el-icon><Delete /></el-icon>
             批量删除
@@ -71,23 +69,22 @@
         </div>
       </div>
 
-      <!-- 数据表格 -->
       <el-table
-        :data="tableData"
-        v-loading="loading"
-        @selection-change="handleSelectionChange"
-        style="width: 100%"
+          :data="tableData"
+          v-loading="loading"
+          @selection-change="handleSelectionChange"
+          style="width: 100%"
       >
         <el-table-column v-if="isAdmin || isVet" type="selection" width="55" />
         <el-table-column prop="petId" label="ID" width="80" />
         <el-table-column prop="imageUrl" label="照片" width="100">
           <template #default="{ row }">
             <el-image
-              v-if="row.imageUrl"
-              :src="getImageUrl(row.imageUrl)"
-              :preview-src-list="[getImageUrl(row.imageUrl)]"
-              style="width: 50px; height: 50px; border-radius: 4px;"
-              fit="cover"
+                v-if="row.imageUrl"
+                :src="getImageUrl(row.imageUrl)"
+                :preview-src-list="[getImageUrl(row.imageUrl)]"
+                style="width: 50px; height: 50px; border-radius: 4px;"
+                fit="cover"
             />
             <span v-else style="color: #999;">暂无图片</span>
           </template>
@@ -118,8 +115,8 @@
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" @click="handleView(row)">详情</el-button>
             <el-popconfirm
-              title="确定要删除这只宠物吗？"
-              @confirm="handleDelete(row)"
+                title="确定要删除这只宠物吗？"
+                @confirm="handleDelete(row)"
             >
               <template #reference>
                 <el-button size="small" type="danger">删除</el-button>
@@ -129,32 +126,30 @@
         </el-table-column>
       </el-table>
 
-      <!-- 分页组件 -->
       <div class="pagination">
         <el-pagination
-          v-model:current-page="pageInfo.page"
-          v-model:page-size="pageInfo.size"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="pageInfo.total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
+            v-model:current-page="pageInfo.page"
+            v-model:page-size="pageInfo.size"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="pageInfo.total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
         />
       </div>
     </el-card>
 
-    <!-- 新增/编辑对话框 -->
     <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="600px"
-      :close-on-click-modal="false"
+        v-model="dialogVisible"
+        :title="dialogTitle"
+        width="600px"
+        :close-on-click-modal="false"
     >
       <el-form
-        ref="petFormRef"
-        :model="petForm"
-        :rules="rules"
-        label-width="100px"
+          ref="petFormRef"
+          :model="petForm"
+          :rules="rules"
+          label-width="100px"
       >
         <el-form-item label="宠物名字" prop="name">
           <el-input v-model="petForm.name" placeholder="请输入宠物名字" />
@@ -178,60 +173,63 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="年龄">
-          <el-input-number 
-            v-model="petForm.age" 
-            :min="0" 
-            :max="50" 
-            controls-position="right"
-            placeholder="请输入年龄"
+          <el-input-number
+              v-model="petForm.age"
+              :min="0"
+              :max="50"
+              controls-position="right"
+              placeholder="请输入年龄"
           />
           <span style="margin-left: 10px; color: #999;">岁</span>
         </el-form-item>
         <el-form-item label="体重">
-          <el-input-number 
-            v-model="petForm.weight" 
-            :min="0.1" 
-            :max="200" 
-            :precision="1"
-            :step="0.1"
-            controls-position="right"
-            placeholder="请输入体重"
+          <el-input-number
+              v-model="petForm.weight"
+              :min="0.1"
+              :max="200"
+              :precision="1"
+              :step="0.1"
+              controls-position="right"
+              placeholder="请输入体重"
           />
           <span style="margin-left: 10px; color: #999;">kg</span>
         </el-form-item>
         <el-form-item label="疫苗记录">
           <el-input
-            v-model="petForm.vaccineRecord"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入疫苗记录"
+              v-model="petForm.vaccineRecord"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入疫苗记录"
           />
         </el-form-item>
         <el-form-item label="宠物照片">
-          <el-upload
-            class="upload-demo"
-            :action="uploadAction"
-            :headers="uploadHeaders"
-            :before-upload="handleBeforeUpload"
-            :on-success="handleUploadSuccess"
-            :on-error="handleUploadError"
-            :show-file-list="false"
-            accept="image/*"
-          >
-            <div v-if="petForm.imageUrl" class="image-preview">
-              <el-image
-                :src="getImageUrl(petForm.imageUrl)"
-                style="width: 100px; height: 100px; border-radius: 4px;"
-                fit="cover"
-              />
-              <div class="image-overlay">
-                <el-button size="small" type="primary">重新上传</el-button>
+          <div class="upload-container">
+            <el-upload
+                class="upload-demo"
+                :action="uploadAction"
+                :headers="uploadHeaders"
+                name="file"
+                :before-upload="handleBeforeUpload"
+                :on-success="handleUploadSuccess"
+                :on-error="handleUploadError"
+                :show-file-list="false"
+                accept="image/*"
+            >
+              <div v-if="petForm.imageUrl" class="image-preview">
+                <el-image
+                    :src="getImageUrl(petForm.imageUrl)"
+                    style="width: 100px; height: 100px; border-radius: 4px;"
+                    fit="cover"
+                />
+                <div class="image-overlay">
+                  <el-button size="small" type="primary">重新上传</el-button>
+                </div>
               </div>
+              <el-button v-else type="primary">上传照片</el-button>
+            </el-upload>
+            <div style="color: #999; font-size: 12px; margin-top: 5px;">
+              支持jpg、jpeg、png、gif格式，文件大小不超过10MB
             </div>
-            <el-button v-else type="primary">上传照片</el-button>
-          </el-upload>
-          <div style="color: #999; font-size: 12px; margin-top: 5px;">
-            支持jpg、jpeg、png、gif格式，文件大小不超过5MB
           </div>
         </el-form-item>
       </el-form>
@@ -245,7 +243,6 @@
       </template>
     </el-dialog>
 
-    <!-- 详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="宠物详情" width="500px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="宠物名字">{{ viewPet.name }}</el-descriptions-item>
@@ -260,10 +257,10 @@
         </el-descriptions-item>
         <el-descriptions-item label="宠物照片" :span="2" v-if="viewPet.imageUrl">
           <el-image
-            :src="getImageUrl(viewPet.imageUrl)"
-            style="width: 200px; height: 200px; border-radius: 4px;"
-            fit="cover"
-            :preview-src-list="[getImageUrl(viewPet.imageUrl)]"
+              :src="getImageUrl(viewPet.imageUrl)"
+              style="width: 200px; height: 200px; border-radius: 4px;"
+              fit="cover"
+              :preview-src-list="[getImageUrl(viewPet.imageUrl)]"
           />
         </el-descriptions-item>
       </el-descriptions>
@@ -339,9 +336,8 @@ const isAdmin = computed(() => authStore.userInfo?.role === 1)
 const isVet = computed(() => authStore.userInfo?.role === 2)
 const isPetOwner = computed(() => !isAdmin.value && !isVet.value)
 
-const uploadAction = computed(() => {
-  return `${import.meta.env.VITE_BASE_URL || '/api'}/pets/upload`
-})
+// [核心修复] 上传配置：使用相对路径，走前端代理，避免 404
+const uploadAction = '/api/files/upload?type=pet'
 
 const uploadHeaders = computed(() => {
   return {
@@ -349,11 +345,12 @@ const uploadHeaders = computed(() => {
   }
 })
 
-// 获取图片URL
+// [核心修复] 获取图片URL：显式拼接后端地址，处理路径前缀问题
 const getImageUrl = (imageUrl) => {
   if (!imageUrl) return ''
   if (imageUrl.startsWith('http')) return imageUrl
-  return `${import.meta.env.VITE_BASE_URL || 'http://localhost:8080'}/api${imageUrl}`
+  // 后端 context-path 已移除，直接拼接端口
+  return `http://localhost:8080${imageUrl}`
 }
 
 // 获取宠物列表
@@ -361,36 +358,36 @@ const fetchPets = async () => {
   loading.value = true
   try {
     let response
-    
+
     if (isPetOwner.value) {
       // 宠物主人：获取自己的宠物列表
       response = await getMyPets()
       if (response.code === 200) {
         // 过滤搜索条件
         let filteredPets = response.data || []
-        
+
         if (searchForm.name) {
-          filteredPets = filteredPets.filter(pet => 
-            pet.name && pet.name.includes(searchForm.name)
+          filteredPets = filteredPets.filter(pet =>
+              pet.name && pet.name.includes(searchForm.name)
           )
         }
         if (searchForm.species) {
-          filteredPets = filteredPets.filter(pet => 
-            pet.species === searchForm.species
+          filteredPets = filteredPets.filter(pet =>
+              pet.species === searchForm.species
           )
         }
         if (searchForm.gender) {
-          filteredPets = filteredPets.filter(pet => 
-            pet.gender === searchForm.gender
+          filteredPets = filteredPets.filter(pet =>
+              pet.gender === searchForm.gender
           )
         }
-        
+
         // 手动分页
         const total = filteredPets.length
         const start = (pageInfo.page - 1) * pageInfo.size
         const end = start + pageInfo.size
         const paginatedPets = filteredPets.slice(start, end)
-        
+
         tableData.value = paginatedPets
         pageInfo.total = total
       }
@@ -500,7 +497,7 @@ const handleBatchDelete = async () => {
     ElMessage.error('您没有权限批量删除宠物')
     return
   }
-  
+
   if (multipleSelection.value.length === 0) {
     ElMessage.warning('请选择要删除的宠物')
     return
@@ -540,7 +537,7 @@ const handleSubmit = async () => {
           ElMessage.success('更新宠物成功')
         } else {
           const response = await createPet(data)
-          
+
           // 如果是宠物主人，创建宠物后自动添加关联
           if (isPetOwner.value && response.code === 200) {
             try {
@@ -592,14 +589,15 @@ const resetForm = () => {
 // 文件上传处理
 const handleBeforeUpload = (file) => {
   const isValidType = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'].includes(file.type)
-  const isValidSize = file.size / 1024 / 1024 < 5
 
   if (!isValidType) {
     ElMessage.error('只支持 jpg、jpeg、png、gif 格式的图片文件')
     return false
   }
-  if (!isValidSize) {
-    ElMessage.error('文件大小不能超过5MB')
+  // [核心修复] 前端限制放宽到 10MB，与后端匹配
+  const isLt10M = file.size / 1024 / 1024 < 10
+  if (!isLt10M) {
+    ElMessage.error('文件大小不能超过10MB')
     return false
   }
   return true
@@ -607,15 +605,26 @@ const handleBeforeUpload = (file) => {
 
 const handleUploadSuccess = (response) => {
   if (response.code === 200) {
-    petForm.imageUrl = response.data
+    // 兼容 {url: "..."} 对象或直接 url 字符串
+    petForm.imageUrl = response.data.url || response.data
     ElMessage.success('图片上传成功')
   } else {
     ElMessage.error(response.message || '图片上传失败')
   }
 }
 
-const handleUploadError = () => {
-  ElMessage.error('图片上传失败')
+// [核心修复] 详细的上传错误处理
+const handleUploadError = (err) => {
+  console.error("上传错误:", err)
+  if (err.message && err.message.includes('Network Error')) {
+    ElMessage.error('连接服务器失败，请确保后端已启动(端口8080)')
+  } else if (err.status === 404) {
+    ElMessage.error('接口未找到(404): 请检查后端路径配置')
+  } else if (err.status === 500) {
+    ElMessage.error('服务器内部错误(500): 请检查后端日志(可能是文件大小超限)')
+  } else {
+    ElMessage.error('图片上传失败')
+  }
 }
 
 // 组件挂载时获取数据

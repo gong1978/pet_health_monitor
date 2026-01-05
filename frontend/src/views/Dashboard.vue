@@ -252,7 +252,7 @@
                 
                 <!-- 无预警时的提示 -->
                 <div v-else class="no-alerts-tip">
-                  <el-empty description="目前暂无预警信息，您的宠物很健康！" image-size="100">
+                  <el-empty description="目前暂无预警信息，您的宠物很健康！" :image-size="100">
                     <template #image>
                       <span style="font-size: 48px;">🐾</span>
                     </template>

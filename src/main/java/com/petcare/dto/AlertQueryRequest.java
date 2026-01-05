@@ -62,6 +62,7 @@ public class AlertQueryRequest {
 
     /**
      * 用户的宠物ID列表（用于权限过滤）
+     * [新增字段]
      */
     private List<Integer> userPetIds;
 }
