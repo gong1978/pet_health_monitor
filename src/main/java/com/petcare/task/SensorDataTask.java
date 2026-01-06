@@ -1,8 +1,8 @@
 package com.petcare.task;
 
 import com.petcare.dto.BehaviorAnalysisCreateRequest;
+import com.petcare.dto.SensorDataCreateRequest;
 import com.petcare.entity.Pet;
-import com.petcare.entity.SensorData;
 import com.petcare.service.BehaviorAnalysisService;
 import com.petcare.service.PetService;
 import com.petcare.service.SensorDataService;
@@ -50,22 +50,45 @@ public class SensorDataTask {
      * 任务1：生理数据模拟 (保持不变)
      * 每30分钟执行一次：为所有宠物生成模拟心率/体温
      */
-    @Scheduled(cron = "0 0/30 * * * ?")
+    @Scheduled(cron = "0 0/30 * * * ?") // 您的定时规则
     public void generateSensorData() {
-        // ... (保持您原有的生理数据逻辑，此处省略以节省篇幅) ...
-        // 如果需要，我可以把这部分代码也贴上，但主要关注下面的行为逻辑
+        log.info("【生理数据】开始生成模拟心率/体温数据...");
         List<Pet> pets = petService.list();
         if (pets.isEmpty()) return;
+
         LocalDateTime now = LocalDateTime.now();
+
         for (Pet pet : pets) {
-            sensorDataService.save(SensorData.builder()
+            // 随机生成数据
+            int heartRate = 60 + random.nextInt(71);
+            // 偶尔生成一个高温 (例如 39.5 - 40.5) 来测试报警
+            float temperature;
+            if (random.nextInt(10) > 7) { // 20% 概率生成高温
+                temperature = 39.5f + random.nextFloat();
+            } else {
+                temperature = 37.5f + random.nextFloat() * 1.5f;
+            }
+            // 保留一位小数
+            temperature = (float) (Math.round(temperature * 10)) / 10;
+
+            // 构造请求对象 (DTO)，而不是直接构造实体
+            SensorDataCreateRequest request = SensorDataCreateRequest.builder()
                     .petId(pet.getPetId())
-                    .heartRate(60 + random.nextInt(71))
-                    .temperature((float) (Math.round((37.5f + random.nextFloat() * 2.0f) * 10)) / 10)
+                    .heartRate(heartRate)
+                    .temperature(temperature)
                     .activity(random.nextInt(2001))
-                    .collectedAt(now)
-                    .build());
+                    .collectedAt(now.format(formatter)) // 转为字符串传入
+                    .build();
+
+            try {
+                // [核心修改] 调用业务服务方法，而不是直接 save
+                // 这样就会执行 checkAndTriggerAlerts 里的判断逻辑了
+                sensorDataService.createSensorData(request);
+            } catch (Exception e) {
+                log.error("模拟数据生成失败: pet={}", pet.getName(), e);
+            }
         }
+        log.info("【生理数据】完成，已生成 {} 条记录。", pets.size());
     }
 
     /**

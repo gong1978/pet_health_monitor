@@ -243,10 +243,10 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
         // 1. 体温检测逻辑
         // 设定阈值：> 39 为略高，< 37 为略低
         if (currentData.getTemperature() != null) {
-            if (currentData.getTemperature() > 39) {
+            if (currentData.getTemperature() > 39.0) {
                 createAlert(currentData.getPetId(), "体温异常",
                         "检测到体温略高 (" + currentData.getTemperature() + "°C)，请注意观察。", "warning");
-            } else if (currentData.getTemperature() < 37) {
+            } else if (currentData.getTemperature() < 37.0) {
                 createAlert(currentData.getPetId(), "体温异常",
                         "检测到体温略低 (" + currentData.getTemperature() + "°C)，请注意保暖。", "warning");
             }
