@@ -214,12 +214,12 @@ const timeRange = ref([])
 
 // 搜索表单
 const searchForm = reactive({
-  petId: null,
-  alertType: '',
-  level: '',
-  isResolved: null,
-  startTime: '',
-  endTime: ''
+  petId: null,       // 改为 null
+  alertType: null,   // 改为 null
+  level: null,
+  isResolved: null,  // 改为 null
+  startTime: null,
+  endTime: null
 })
 
 // 分页信息
@@ -288,47 +288,45 @@ const fetchPetList = async () => {
   }
 }
 
-// 获取预警列表
+// 获取预警列表（修复版）
 const fetchAlerts = async () => {
   loading.value = true
   try {
-    // 1. 构造原始参数
-    const params = {
+    // 1. 准备原始参数
+    const rawParams = {
       page: pageInfo.page,
       size: pageInfo.size,
       petId: searchForm.petId,
       alertType: searchForm.alertType,
-      // 注意：后端通常期望 Boolean 或 Integer，空字符串会导致 400
+      level: searchForm.level,
       isResolved: searchForm.isResolved,
       startTime: searchForm.startTime,
       endTime: searchForm.endTime
     }
 
-    // [核心修复] 2. 过滤掉空字符串("")和 null/undefined 值
-    // 防止将 "" 发送给后端的 Integer/Boolean/Date 字段引发 400 错误
-    Object.keys(params).forEach(key => {
-      if (params[key] === '' || params[key] === null || params[key] === undefined) {
-        delete params[key]
+    // 2. [核心修复] 清洗参数：把空字符串 "" 剔除掉
+    const params = {}
+    for (const key in rawParams) {
+      // 只有当值不是空字符串、不是null、不是undefined时，才发送
+      if (rawParams[key] !== '' && rawParams[key] !== null && rawParams[key] !== undefined) {
+        params[key] = rawParams[key]
       }
-    })
+    }
 
-    // 3. 发送请求
+    // 3. 发送干净的请求
     const response = await getAlerts(params)
 
     if (response.code === 200) {
       tableData.value = response.data.records
       pageInfo.total = response.data.total
     } else {
-      // 只有非200才提示错误，避免清空列表
       ElMessage.error(response.message || '获取预警列表失败')
     }
   } catch (error) {
     console.error('Fetch alerts error:', error)
-    // 400 错误通常在这里被捕获
-    if(error.response && error.response.status === 400) {
-      ElMessage.error('请求参数格式错误(400)，请检查搜索条件')
-    } else {
-      ElMessage.error('系统异常，无法加载数据')
+    if (error.response && error.response.status === 400) {
+      // 如果还报400，说明代码没保存成功或者没生效
+      console.error("400错误详情:", error.response)
     }
     tableData.value = []
     pageInfo.total = 0
