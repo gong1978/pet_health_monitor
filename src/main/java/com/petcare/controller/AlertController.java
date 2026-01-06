@@ -68,10 +68,18 @@ public class AlertController {
                     .size(size)
                     .build();
 
+            // ✅ 加在这里：打印 request attribute 实际类型，确认 role 有没有塞对
+            log.info("alerts pageQuery attr: userId={}, role={}, roleClass={}",
+                    userId, userRole,
+                    (request.getAttribute("role") == null ? null : request.getAttribute("role").getClass()));
+
             // 如果是宠物主人(role=3)，只能查看自己宠物的预警
             if (userRole != null && userRole == 3) {
                 // 获取该用户拥有的宠物ID列表
                 List<Integer> userPetIds = userPetService.getPetIdsByUserId(userId);
+
+                // ✅ 加在这里：看看多宠物用户实际拿到了哪些 petId
+                log.info("owner filter userPetIds={}", userPetIds);
 
                 if (userPetIds == null || userPetIds.isEmpty()) {
                     // 用户没有宠物，返回空结果，避免查询所有数据
@@ -94,9 +102,22 @@ public class AlertController {
             }
 
             AlertPageResponse response = alertService.pageQuery(queryRequest);
+
+            // ✅ 加这个：看后端到底返回了多少条、都属于哪些 petId
+            log.info("alerts pageQuery result: total={}, recordSize={}, petIds={}",
+                    response.getTotal(),
+                    response.getRecords() == null ? 0 : response.getRecords().size(),
+                    response.getRecords() == null ? List.of() :
+                            response.getRecords().stream()
+                                    .map(AlertPageResponse.AlertResponse::getPetId)
+                                    .distinct()
+                                    .toList()
+            );
+
             return Result.success(response);
         } catch (RuntimeException e) {
-            return Result.fail(400, e.getMessage());
+            log.error("alerts pageQuery failed", e);
+            return Result.fail(400, e.getMessage() == null ? "服务器内部错误，请查看后端日志" : e.getMessage());
         }
     }
 

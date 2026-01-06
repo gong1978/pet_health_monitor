@@ -58,8 +58,18 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
         // 构建查询条件
         QueryWrapper<Alert> queryWrapper = new QueryWrapper<>();
 
-        // [核心修改] 权限过滤：如果指定了用户的宠物ID列表，只查询这些宠物的预警
-        if (queryRequest.getUserPetIds() != null && !queryRequest.getUserPetIds().isEmpty()) {
+        // ✅ 更安全的权限过滤：只要 userPetIds != null，就表示要按权限过滤
+        if (queryRequest.getUserPetIds() != null) {
+            if (queryRequest.getUserPetIds().isEmpty()) {
+                // 用户没有任何宠物权限，直接返回空页，避免误查全表
+                return AlertPageResponse.builder()
+                        .records(List.of())
+                        .total(0L)
+                        .current(queryRequest.getPage().longValue())
+                        .size(queryRequest.getSize().longValue())
+                        .pages(0L)
+                        .build();
+            }
             queryWrapper.in("pet_id", queryRequest.getUserPetIds());
         }
 
@@ -72,9 +82,18 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
         if (StringUtils.hasText(queryRequest.getLevel())) {
             queryWrapper.eq("level", queryRequest.getLevel());
         }
+
+        // ✅ 关键修复：isResolved=false 时，把 is_resolved 为 NULL 的也当未处理
         if (queryRequest.getIsResolved() != null) {
-            queryWrapper.eq("is_resolved", queryRequest.getIsResolved());
+            if (Boolean.FALSE.equals(queryRequest.getIsResolved())) {
+                // 未处理：0 或 NULL
+                queryWrapper.and(w -> w.eq("is_resolved", 0).or().isNull("is_resolved"));
+            } else {
+                // 已处理：1
+                queryWrapper.eq("is_resolved", 1);
+            }
         }
+
         if (queryRequest.getResolvedBy() != null) {
             queryWrapper.eq("resolved_by", queryRequest.getResolvedBy());
         }
@@ -105,26 +124,34 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
         // 获取关联的宠物信息
         List<Alert> records = page.getRecords();
         Map<Integer, String> petNameMap = getPetNameMap(records);
+
         // 获取处理人信息映射
         Map<Integer, String> resolverNameMap = getResolverNameMap(records);
 
         // 转换为响应 DTO 列表
         List<AlertPageResponse.AlertResponse> responseList = records.stream()
-                .map(alert -> AlertPageResponse.AlertResponse.builder()
-                        .alertId(alert.getAlertId())
-                        .petId(alert.getPetId())
-                        .petName(petNameMap.getOrDefault(alert.getPetId(), "未知"))
-                        .alertType(alert.getAlertType())
-                        .alertMessage(alert.getAlertMessage())
-                        .level(alert.getLevel())
-                        .createdAt(alert.getCreatedAt() != null ? alert.getCreatedAt().format(formatter) : "")
-                        .isResolved(alert.getIsResolved())
-                        .resolvedBy(alert.getResolvedBy())
-                        .resolverName(resolverNameMap.get(alert.getResolvedBy()))
-                        .build())
+                .map(alert -> {
+                    Integer resolvedBy = alert.getResolvedBy();
+                    Boolean resolved = alert.getIsResolved();
+
+                    return AlertPageResponse.AlertResponse.builder()
+                            .alertId(alert.getAlertId())
+                            .petId(alert.getPetId())
+                            .petName(petNameMap.getOrDefault(alert.getPetId(), "未知"))
+                            .alertType(alert.getAlertType())
+                            .alertMessage(alert.getAlertMessage())
+                            .level(alert.getLevel())
+                            .createdAt(alert.getCreatedAt() != null ? alert.getCreatedAt().format(formatter) : "")
+                            // ✅ 关键兜底：null -> false（防止前端/图表/逻辑异常）
+                            .isResolved(Boolean.TRUE.equals(resolved))
+                            .resolvedBy(resolvedBy)
+                            // ✅ resolvedBy 可能为 null，避免无意义 get(null)
+                            .resolverName(resolvedBy == null ? null : resolverNameMap.get(resolvedBy))
+                            .build();
+                })
                 .collect(Collectors.toList());
 
-        // 【关键】返回前端预期的封装对象
+        // 返回封装对象
         return AlertPageResponse.builder()
                 .records(responseList)
                 .total(page.getTotal())
@@ -191,6 +218,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
                 .alertMessage(createRequest.getAlertMessage())
                 .level(createRequest.getLevel() != null ? createRequest.getLevel() : "warning")
                 .createdAt(createdAt)
+                // ✅ 明确写入 false，避免数据库出现 NULL
                 .isResolved(false)
                 .resolvedBy(null)
                 .build();
@@ -238,7 +266,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
             throw new RuntimeException("预警等级只能是 warning 或 critical");
         }
 
-        // [新增] 解析预警时间逻辑
+        // 解析预警时间
         LocalDateTime createdAt = null;
         if (StringUtils.hasText(updateRequest.getCreatedAt())) {
             try {
@@ -257,7 +285,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
                 .level(updateRequest.getLevel())
                 .isResolved(updateRequest.getIsResolved())
                 .resolvedBy(updateRequest.getResolvedBy())
-                .createdAt(createdAt) // [新增] 设置解析后的时间
+                .createdAt(createdAt)
                 .build();
 
         boolean success = this.updateById(alert);
@@ -270,12 +298,10 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
 
     @Override
     public void deleteAlert(Integer alertId) {
-        // 验证参数
         if (alertId == null) {
             throw new RuntimeException("预警ID不能为空");
         }
 
-        // 检查预警是否存在
         Alert alert = this.getById(alertId);
         if (alert == null) {
             throw new RuntimeException("异常预警不存在");
@@ -291,12 +317,10 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
 
     @Override
     public void batchDeleteAlerts(List<Integer> alertIds) {
-        // 验证参数
         if (alertIds == null || alertIds.isEmpty()) {
             throw new RuntimeException("预警ID列表不能为空");
         }
 
-        // 检查是否存在无效的ID
         for (Integer alertId : alertIds) {
             if (alertId == null) {
                 throw new RuntimeException("预警ID列表中包含空值");
@@ -313,7 +337,6 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
 
     @Override
     public void resolveAlert(Integer alertId, Integer userId) {
-        // 验证参数
         if (alertId == null) {
             throw new RuntimeException("预警ID不能为空");
         }
@@ -321,19 +344,13 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
             throw new RuntimeException("处理用户ID不能为空");
         }
 
-        // 检查预警是否存在
         Alert existAlert = getAlertById(alertId);
-        if (existAlert == null) {
-            throw new RuntimeException("异常预警不存在");
-        }
 
-        // 检查用户是否存在
         User resolver = userService.getUserById(userId);
         if (resolver == null) {
             throw new RuntimeException("处理用户不存在");
         }
 
-        // 构建更新实体
         Alert alert = Alert.builder()
                 .alertId(alertId)
                 .isResolved(true)
@@ -350,7 +367,6 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
 
     @Override
     public void batchResolveAlerts(List<Integer> alertIds, Integer userId) {
-        // 验证参数
         if (alertIds == null || alertIds.isEmpty()) {
             throw new RuntimeException("预警ID列表不能为空");
         }
@@ -358,13 +374,11 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
             throw new RuntimeException("处理用户ID不能为空");
         }
 
-        // 检查用户是否存在
         User resolver = userService.getUserById(userId);
         if (resolver == null) {
             throw new RuntimeException("处理用户不存在");
         }
 
-        // 批量更新
         for (Integer alertId : alertIds) {
             if (alertId != null) {
                 Alert alert = Alert.builder()
@@ -385,6 +399,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
     private Map<Integer, String> getPetNameMap(List<Alert> records) {
         List<Integer> petIds = records.stream()
                 .map(Alert::getPetId)
+                .filter(id -> id != null)
                 .distinct()
                 .collect(Collectors.toList());
 
@@ -394,7 +409,10 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
 
         List<Pet> pets = petService.listByIds(petIds);
         return pets.stream()
-                .collect(Collectors.toMap(Pet::getPetId, pet -> pet.getName() != null ? pet.getName() : "未知"));
+                .collect(Collectors.toMap(
+                        Pet::getPetId,
+                        pet -> pet.getName() != null ? pet.getName() : "未知"
+                ));
     }
 
     /**
@@ -413,8 +431,11 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
 
         List<User> resolvers = userService.listByIds(resolverIds);
         return resolvers.stream()
-                .collect(Collectors.toMap(User::getUserId,
-                        user -> user.getFullName() != null ? user.getFullName() :
-                                (user.getUsername() != null ? user.getUsername() : "未知")));
+                .collect(Collectors.toMap(
+                        User::getUserId,
+                        user -> user.getFullName() != null
+                                ? user.getFullName()
+                                : (user.getUsername() != null ? user.getUsername() : "未知")
+                ));
     }
 }

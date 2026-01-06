@@ -74,22 +74,25 @@ public class AlertPageResponse {
         private String alertMessage;
 
         /**
-         * 预警等级
+         * 预警等级 warning / critical
          */
         private String level;
 
         /**
-         * 预警时间
+         * 预警时间（格式化字符串）
          */
         private String createdAt;
 
         /**
          * 是否已处理
+         * 注意：使用 Boolean（包装类型）避免数据库 NULL 时拆箱 NPE
+         * 建议 Service 层输出时做 null -> false 兜底
          */
         private Boolean isResolved;
 
         /**
          * 处理用户ID
+         * 注意：使用 Integer（包装类型）避免 NULL 拆箱 NPE
          */
         private Integer resolvedBy;
 
