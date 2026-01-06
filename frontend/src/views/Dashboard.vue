@@ -7,45 +7,45 @@
           <h2>🐾 宠物监测</h2>
         </div>
         <el-menu
-          :default-active="activeMenu"
-          class="el-menu-vertical-demo"
-          @select="handleMenuSelect"
+            :default-active="activeMenu"
+            class="el-menu-vertical-demo"
+            @select="handleMenuSelect"
         >
           <!-- 首页 - 所有角色都有 -->
           <el-menu-item index="1">
             <span>首页</span>
           </el-menu-item>
-          
+
           <!-- 宠物管理 - 所有角色都有 -->
           <el-menu-item index="2">
             <span>宠物管理</span>
           </el-menu-item>
-          
+
           <!-- 健康数据 - 所有角色都有 -->
           <el-menu-item index="3">
             <span>健康数据</span>
           </el-menu-item>
-          
+
           <!-- 行为分析 - 所有角色都有 -->
           <el-menu-item index="4">
             <span>行为分析</span>
           </el-menu-item>
-          
+
           <!-- 医疗记录 - 所有角色都有 -->
           <el-menu-item index="5">
             <span>医疗记录</span>
           </el-menu-item>
-          
+
           <!-- 异常预警 - 管理员和兽医可见 -->
           <el-menu-item index="6" v-if="userInfo.role === 1 || userInfo.role === 2">
             <span>异常预警</span>
           </el-menu-item>
-          
+
           <!-- 兽医咨询 - 所有角色都有 -->
           <el-menu-item index="7">
             <span>兽医咨询</span>
           </el-menu-item>
-          
+
           <!-- 用户管理 - 只有管理员可见 -->
           <el-menu-item index="8" v-if="userInfo.role === 1">
             <span>用户管理</span>
@@ -81,7 +81,7 @@
         <!-- 主内容区 -->
         <el-main class="main-content">
           <div v-if="activeMenu === '1'" class="content-section">
-<!--            <h2>欢迎来到宠物健康监测系统</h2>-->
+            <!--            <h2>欢迎来到宠物健康监测系统</h2>-->
             <div class="welcome-info" v-if="dashboardStats.userName">
               <p>您好，{{ dashboardStats.userName }}！
                 <span v-if="dashboardStats.userRole === 1">（管理员）</span>
@@ -89,7 +89,7 @@
                 <span v-else>（宠物主人）</span>
               </p>
             </div>
-            
+
             <el-row :gutter="20" class="mt-20" v-loading="statsLoading">
               <el-col :xs="24" :sm="12" :md="6">
                 <el-card class="stat-card">
@@ -147,7 +147,7 @@
                     <div ref="alertLevelChart" class="chart-container" v-loading="chartLoading"></div>
                   </el-card>
                 </el-col>
-                
+
                 <el-col :span="12">
                   <el-card>
                     <template #header>
@@ -159,7 +159,7 @@
                   </el-card>
                 </el-col>
               </el-row>
-              
+
               <!-- 最新预警列表 -->
               <el-card class="mt-20">
                 <template #header>
@@ -198,7 +198,7 @@
                 </el-table>
               </el-card>
             </template>
-            
+
             <!-- 宠物主人专属内容 -->
             <template v-else>
               <!-- 我的预警通知 -->
@@ -214,14 +214,14 @@
                     </el-tag>
                   </div>
                 </template>
-                
+
                 <!-- 有预警时显示预警列表 -->
                 <div class="alert-notifications" v-if="myAlerts.length > 0">
-                  <div 
-                    v-for="alert in myAlerts.slice(0, 3)" 
-                    :key="alert.alertId"
-                    class="alert-notification-item"
-                    :class="{ 'critical': alert.level === 'critical', 'resolved': alert.isResolved }"
+                  <div
+                      v-for="alert in myAlerts.slice(0, 3)"
+                      :key="alert.alertId"
+                      class="alert-notification-item"
+                      :class="{ 'critical': alert.level === 'critical', 'resolved': alert.isResolved }"
                   >
                     <div class="alert-icon">
                       <span v-if="alert.level === 'critical'">🔴</span>
@@ -242,14 +242,14 @@
                       </div>
                     </div>
                   </div>
-                  
+
                   <div class="view-more" v-if="myAlerts.length > 3">
                     <el-button type="text" @click="showAllAlertsDialog = true">
                       查看全部 {{ myAlerts.length }} 条预警 →
                     </el-button>
                   </div>
                 </div>
-                
+
                 <!-- 无预警时的提示 -->
                 <div v-else class="no-alerts-tip">
                   <el-empty description="目前暂无预警信息，您的宠物很健康！" :image-size="100">
@@ -259,7 +259,7 @@
                   </el-empty>
                 </div>
               </el-card>
-              
+
               <!-- 快捷操作 -->
               <el-card class="mt-20">
                 <template #header>
@@ -302,19 +302,19 @@
                   </el-col>
                 </el-row>
               </el-card>
-              
+
               <el-card class="mt-20">
                 <template #header>
                   <div class="card-header">
                     <span>💡 使用提示</span>
                   </div>
                 </template>
-                <el-alert 
-                  title="宠物健康小贴士" 
-                  type="info" 
-                  description="定期为您的宠物进行健康检查，关注宠物的行为变化，及时发现健康问题。如有异常，请及时咨询专业兽医。"
-                  show-icon
-                  :closable="false"
+                <el-alert
+                    title="宠物健康小贴士"
+                    type="info"
+                    description="定期为您的宠物进行健康检查，关注宠物的行为变化，及时发现健康问题。如有异常，请及时咨询专业兽医。"
+                    show-icon
+                    :closable="false"
                 />
               </el-card>
             </template>
@@ -386,17 +386,17 @@
         </template>
       </el-table-column>
     </el-table>
-    
+
     <div class="dialog-tip">
-      <el-alert 
-        title="提示" 
-        description="如发现异常预警，建议及时通过兽医咨询功能联系专业兽医进行处理。" 
-        type="info" 
-        :closable="false" 
-        show-icon 
+      <el-alert
+          title="提示"
+          description="如发现异常预警，建议及时通过兽医咨询功能联系专业兽医进行处理。"
+          type="info"
+          :closable="false"
+          show-icon
       />
     </div>
-    
+
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="showAllAlertsDialog = false">关闭</el-button>
@@ -515,7 +515,7 @@ const fetchMyPets = async () => {
     } catch (userPetError) {
       console.log('用户宠物关联接口失败，尝试使用备用方案:', userPetError.message)
     }
-    
+
     // 备用方案：获取所有宠物，然后根据ownerId过滤（假设宠物表有ownerId字段）
     const currentUserId = userInfo.value.userId || userInfo.value.id
     if (currentUserId) {
@@ -542,36 +542,36 @@ const fetchMyAlerts = async () => {
     if (myPets.value.length === 0) {
       await fetchMyPets()
     }
-    
+
     // 如果用户没有宠物，直接返回空数组
     if (myPets.value.length === 0) {
       console.log('用户暂无宠物，无法获取预警数据')
       myAlerts.value = []
       return
     }
-    
+
     // 获取所有预警数据
     const response = await getAlerts({ page: 1, size: 50 })
     if (response.code === 200) {
       // 过滤出属于用户宠物的预警
       const userPetIds = myPets.value.map(pet => pet.petId || pet.id || pet.pet_id)
       console.log('用户宠物ID列表:', userPetIds)
-      
+
       const allAlerts = response.data.records || []
       console.log('所有预警数据:', allAlerts)
-      
+
       if (allAlerts.length === 0) {
         myAlerts.value = []
         return
       }
-      
+
       const filteredAlerts = allAlerts.filter(alert => {
         const alertPetId = alert.petId || alert.pet_id
         const isMatch = userPetIds.includes(alertPetId)
         console.log(`预警 ${alert.alertId}: petId=${alertPetId}, 是否匹配=${isMatch}`)
         return isMatch
       })
-      
+
       myAlerts.value = filteredAlerts
       console.log('过滤后的预警数据:', myAlerts.value)
     }
@@ -587,15 +587,15 @@ const fetchMyAlerts = async () => {
 // 初始化预警等级分布饼图
 const initAlertLevelChart = () => {
   if (!alertLevelChart.value) return
-  
+
   // 如果实例已存在，先销毁
   if (alertLevelChartInstance) {
     alertLevelChartInstance.dispose()
   }
-  
+
   alertLevelChartInstance = echarts.init(alertLevelChart.value)
   const alertStats = getAlertLevelStats()
-  
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -627,22 +627,22 @@ const initAlertLevelChart = () => {
     ],
     color: ['#ff6b6b', '#ffa500', '#4ecdc4']
   }
-  
+
   alertLevelChartInstance.setOption(option)
 }
 
 // 初始化预警趋势折线图
 const initAlertTrendChart = () => {
   if (!alertTrendChart.value) return
-  
+
   // 如果实例已存在，先销毁
   if (alertTrendChartInstance) {
     alertTrendChartInstance.dispose()
   }
-  
+
   alertTrendChartInstance = echarts.init(alertTrendChart.value)
   const trendData = getAlertTrendData()
-  
+
   const option = {
     tooltip: {
       trigger: 'axis'
@@ -684,7 +684,7 @@ const initAlertTrendChart = () => {
       }
     ]
   }
-  
+
   alertTrendChartInstance.setOption(option)
 }
 
@@ -692,7 +692,7 @@ const initAlertTrendChart = () => {
 const initCharts = () => {
   // 避免重复初始化
   if (chartLoading.value) return
-  
+
   chartLoading.value = true
   try {
     // 延迟执行确保DOM已渲染
@@ -715,7 +715,7 @@ const getAlertLevelStats = () => {
   const criticalCount = recentAlerts.value.filter(alert => alert.level === 'critical').length
   const warningCount = recentAlerts.value.filter(alert => alert.level === 'warning').length
   const resolvedCount = recentAlerts.value.filter(alert => alert.isResolved).length
-  
+
   return [
     { value: criticalCount, name: '严重预警' },
     { value: warningCount, name: '警告预警' },
@@ -728,17 +728,17 @@ const getAlertTrendData = () => {
   const dates = []
   const critical = []
   const warning = []
-  
+
   for (let i = 6; i >= 0; i--) {
     const date = new Date()
     date.setDate(date.getDate() - i)
     dates.push(date.toLocaleDateString())
-    
+
     // 模拟数据
     critical.push(Math.floor(Math.random() * 5))
     warning.push(Math.floor(Math.random() * 10))
   }
-  
+
   return { dates, critical, warning }
 }
 
@@ -792,7 +792,7 @@ const handleResize = () => {
 onMounted(async () => {
   userInfo.value = authStore.userInfo
   fetchDashboardStats()
-  
+
   // 根据角色获取不同的预警数据
   if (userInfo.value.role === 1 || userInfo.value.role === 2) {
     // 管理员和兽医获取全部预警数据
@@ -802,7 +802,7 @@ onMounted(async () => {
     await fetchMyPets()
     fetchMyAlerts()
   }
-  
+
   // 添加窗口大小调整监听
   window.addEventListener('resize', handleResize)
 })
@@ -817,7 +817,7 @@ onUnmounted(() => {
     alertTrendChartInstance.dispose()
     alertTrendChartInstance = null
   }
-  
+
   // 移除窗口大小调整监听
   window.removeEventListener('resize', handleResize)
 })
@@ -852,12 +852,12 @@ const handleMenuSelect = (index) => {
     ElMessage.warning('您没有权限访问异常预警管理')
     return
   }
-  
+
   if (index === '8' && userInfo.value.role !== 1) {
     ElMessage.warning('您没有权限访问用户管理')
     return
   }
-  
+
   activeMenu.value = index
 }
 
@@ -870,19 +870,19 @@ const handleCommand = async (command) => {
       cancelButtonText: '取消',
       type: 'warning',
     })
-      .then(async () => {
-        try {
-          await logout()
-        } catch (error) {
-          console.error('登出请求失败:', error)
-        }
-        authStore.clearAuth()
-        ElMessage.success('已退出登录')
-        router.push('/login')
-      })
-      .catch(() => {
-        ElMessage.info('已取消退出')
-      })
+        .then(async () => {
+          try {
+            await logout()
+          } catch (error) {
+            console.error('登出请求失败:', error)
+          }
+          authStore.clearAuth()
+          ElMessage.success('已退出登录')
+          router.push('/login')
+        })
+        .catch(() => {
+          ElMessage.info('已取消退出')
+        })
   }
 }
 </script>
@@ -892,7 +892,7 @@ const handleCommand = async (command) => {
   width: 100%;
   height: 100vh;
   background-color: #f5f5f5;
-  
+
   .el-container {
     height: 100vh;
   }
@@ -942,7 +942,7 @@ const handleCommand = async (command) => {
         color: #fff;
         font-weight: 600;
         border-radius: 8px;
-        
+
         &::before {
           content: '';
           position: absolute;
@@ -1013,7 +1013,7 @@ const handleCommand = async (command) => {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 12px;
   color: white;
-  
+
   p {
     margin: 0;
     font-size: 16px;
@@ -1032,11 +1032,11 @@ const handleCommand = async (command) => {
     box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.15);
     transform: translateY(-2px);
   }
-  
+
   &.has-alert {
     border: 2px solid #ff4d4f;
     animation: pulse 2s infinite;
-    
+
     .stat-number {
       color: #ff4d4f !important;
     }
@@ -1060,7 +1060,7 @@ const handleCommand = async (command) => {
       font-weight: 500;
       margin-bottom: 5px;
     }
-    
+
     .alert-badge {
       display: inline-block;
       background: #ff4d4f;
@@ -1137,13 +1137,13 @@ const handleCommand = async (command) => {
   .chart-container {
     height: 200px;
   }
-  
+
   .dashboard-container {
     .sidebar {
       width: 150px !important;
     }
   }
-  
+
   .quick-action-btn {
     width: 100%;
     height: 120px;
@@ -1161,63 +1161,63 @@ const handleCommand = async (command) => {
     border-left: 4px solid #f0f0f0;
     background-color: #fafafa;
     transition: all 0.3s ease;
-    
+
     &:hover {
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       transform: translateY(-1px);
     }
-    
+
     &.critical {
       border-left-color: #ff4d4f;
       background-color: #fff2f0;
     }
-    
+
     &.resolved {
       border-left-color: #52c41a;
       background-color: #f6ffed;
     }
-    
+
     .alert-icon {
       margin-right: 12px;
       font-size: 20px;
       margin-top: 2px;
     }
-    
+
     .alert-content {
       flex: 1;
-      
+
       .alert-header {
         display: flex;
         align-items: center;
         gap: 8px;
         margin-bottom: 8px;
-        
+
         .pet-name {
           font-weight: 600;
           color: #333;
         }
-        
+
         .alert-time {
           font-size: 12px;
           color: #999;
           margin-left: auto;
         }
       }
-      
+
       .alert-message {
         color: #666;
         font-size: 14px;
         line-height: 1.4;
         margin-bottom: 8px;
       }
-      
+
       .alert-status {
         display: flex;
         justify-content: flex-end;
       }
     }
   }
-  
+
   .view-more {
     text-align: center;
     padding: 10px;
@@ -1242,24 +1242,24 @@ const handleCommand = async (command) => {
   padding: 0;
   border-radius: 12px;
   transition: all 0.3s ease;
-  
+
   &:hover {
     transform: translateY(-3px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
   }
-  
+
   .btn-content {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     height: 100%;
-    
+
     .btn-icon {
       font-size: 36px;
       margin-bottom: 8px;
     }
-    
+
     .btn-text {
       font-size: 16px;
       font-weight: 600;
@@ -1267,4 +1267,3 @@ const handleCommand = async (command) => {
   }
 }
 </style>
-

@@ -14,13 +14,19 @@ import com.petcare.dto.UserQueryRequest;
 import com.petcare.dto.UserUpdateRequest;
 import com.petcare.dto.UserCreateRequest;
 import com.petcare.entity.User;
+import com.petcare.entity.UserPet;
+import com.petcare.entity.VetConsultation;
 import com.petcare.mapper.UserMapper;
+import com.petcare.mapper.UserPetMapper;
+import com.petcare.mapper.VetConsultationMapper;
+import com.petcare.service.PetService; // [新增] 导入 PetService
 import com.petcare.service.UserService;
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -39,6 +45,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Autowired
     private PasswordUtil passwordUtil;
+
+    @Autowired
+    private UserPetMapper userPetMapper;
+
+    @Autowired
+    private VetConsultationMapper vetConsultationMapper;
+
+    // [新增] 注入 PetService 用于级联删除宠物
+    @Autowired
+    private PetService petService;
 
     @Value("${jwt.expiration}")
     private Long jwtExpiration;
@@ -296,6 +312,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteUser(Integer userId) {
         // 验证参数
         if (userId == null) {
@@ -308,26 +325,48 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new RuntimeException("用户不存在");
         }
 
-        // 删除用户
+        // [核心修改] 1. 查找并级联删除该用户拥有的所有宠物
+        // 这一步确保宠物的详细信息（Alerts, SensorData, Reports等）被 PetService 清理
+        QueryWrapper<UserPet> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId);
+        List<UserPet> userPets = userPetMapper.selectList(queryWrapper);
+
+        if (userPets != null && !userPets.isEmpty()) {
+            for (UserPet up : userPets) {
+                // 调用 PetService 的删除方法，它会负责删除 pets 表及其关联的子表数据
+                petService.deletePet(up.getPetId());
+            }
+        }
+
+        // 2. 确保用户-宠物关联关系已被清空 (petService.deletePet 可能已处理，此处兜底)
+        userPetMapper.delete(queryWrapper);
+
+        // 3. 删除用户发起的兽医咨询 (VetConsultation)
+        QueryWrapper<VetConsultation> consultationQuery = new QueryWrapper<>();
+        consultationQuery.eq("user_id", userId);
+        vetConsultationMapper.delete(consultationQuery);
+
+        // 4. 删除用户本身
         boolean success = this.removeById(userId);
         if (!success) {
             throw new RuntimeException("删除用户失败");
         }
 
-        log.info("用户删除成功: {}", userId);
+        log.info("用户及其关联数据（宠物、咨询等）删除成功: {}", userId);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void batchDeleteUsers(List<Integer> userIds) {
         // 验证参数
         if (userIds == null || userIds.isEmpty()) {
             throw new RuntimeException("用户ID列表不能为空");
         }
 
-        // 删除用户
-        boolean success = this.removeBatchByIds(userIds);
-        if (!success) {
-            throw new RuntimeException("批量删除用户失败");
+        // [核心修改] 循环调用 deleteUser 以确保触发每个用户的级联删除逻辑
+        // 这样可以保证批量删除时，也能连带删除所有相关的宠物数据
+        for (Integer userId : userIds) {
+            deleteUser(userId);
         }
 
         log.info("批量删除用户成功: {}", userIds);

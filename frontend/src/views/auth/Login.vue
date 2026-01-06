@@ -7,37 +7,37 @@
       </div>
 
       <el-form
-        ref="loginFormRef"
-        :model="loginForm"
-        :rules="rules"
-        @keyup.enter="handleLogin"
+          ref="loginFormRef"
+          :model="loginForm"
+          :rules="rules"
+          @keyup.enter="handleLogin"
       >
         <el-form-item prop="username">
           <el-input
-            v-model="loginForm.username"
-            placeholder="请输入用户名"
-            prefix-icon="User"
-            clearable
+              v-model="loginForm.username"
+              placeholder="请输入用户名"
+              prefix-icon="User"
+              clearable
           />
         </el-form-item>
 
         <el-form-item prop="password">
           <el-input
-            v-model="loginForm.password"
-            type="password"
-            placeholder="请输入密码"
-            prefix-icon="Lock"
-            show-password
-            clearable
+              v-model="loginForm.password"
+              type="password"
+              placeholder="请输入密码"
+              prefix-icon="Lock"
+              show-password
+              clearable
           />
         </el-form-item>
 
         <el-form-item>
           <el-button
-            type="primary"
-            class="login-btn"
-            @click="handleLogin"
-            :loading="loading"
+              type="primary"
+              class="login-btn"
+              @click="handleLogin"
+              :loading="loading"
           >
             登 录
           </el-button>
@@ -167,4 +167,3 @@ const handleLogin = async () => {
   }
 }
 </style>
-

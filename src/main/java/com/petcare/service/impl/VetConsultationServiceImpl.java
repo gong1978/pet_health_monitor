@@ -14,7 +14,6 @@ import com.petcare.mapper.VetConsultationMapper;
 import com.petcare.service.PetService;
 import com.petcare.service.UserService;
 import com.petcare.service.VetConsultationService;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -29,7 +28,6 @@ import java.util.stream.Collectors;
 /**
  * 兽医咨询服务实现
  */
-@Slf4j
 @Service
 public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMapper, VetConsultation> implements VetConsultationService {
 
@@ -53,7 +51,7 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
 
         // 构建查询条件
         QueryWrapper<VetConsultation> queryWrapper = new QueryWrapper<>();
-        
+
         if (queryRequest.getPetId() != null) {
             queryWrapper.eq("pet_id", queryRequest.getPetId());
         }
@@ -89,10 +87,10 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
                 throw new RuntimeException("结束时间格式错误，请使用 yyyy-MM-dd HH:mm:ss 格式");
             }
         }
-        
+
         // 按提问时间倒序，未回答的在前
         queryWrapper.orderByAsc("CASE WHEN answer IS NULL OR answer = '' THEN 0 ELSE 1 END")
-                   .orderByDesc("asked_at");
+                .orderByDesc("asked_at");
 
         // 分页查询
         Page<VetConsultation> page = new Page<>(queryRequest.getPage(), queryRequest.getSize());
@@ -100,25 +98,38 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
 
         // 获取关联信息
         List<VetConsultation> records = page.getRecords();
-        Map<Integer, String> petNameMap = getPetNameMap(records);
-        Map<Integer, String> userNameMap = getUserNameMap(records);
-        Map<Integer, String> vetNameMap = getVetNameMap(records);
+
+        // [核心修复] 获取 Map 时确保即使为空也不会报错
+        Map<Integer, String> petMap = getPetNameMap(records);
+        Map<Integer, String> userMap = getUserNameMap(records);
+        Map<Integer, String> vetMap = getVetNameMap(records);
 
         // 转换为响应DTO
         List<VetConsultationPageResponse.VetConsultationResponse> responseList = records.stream()
                 .map(consult -> {
                     boolean answered = StringUtils.hasText(consult.getAnswer());
+
+                    // [核心修复] 安全获取名称，防止 NPE
+                    String petName = (consult.getPetId() != null && petMap.containsKey(consult.getPetId()))
+                            ? petMap.get(consult.getPetId()) : "未知宠物";
+
+                    String userName = (consult.getUserId() != null && userMap.containsKey(consult.getUserId()))
+                            ? userMap.get(consult.getUserId()) : "未知用户";
+
+                    String vetName = (consult.getAnsweredBy() != null && vetMap.containsKey(consult.getAnsweredBy()))
+                            ? vetMap.get(consult.getAnsweredBy()) : "";
+
                     return VetConsultationPageResponse.VetConsultationResponse.builder()
                             .consultId(consult.getConsultId())
                             .petId(consult.getPetId())
-                            .petName(petNameMap.get(consult.getPetId()))
+                            .petName(petName)
                             .userId(consult.getUserId())
-                            .userName(userNameMap.get(consult.getUserId()))
+                            .userName(userName)
                             .question(consult.getQuestion())
                             .answer(consult.getAnswer())
                             .askedAt(consult.getAskedAt() != null ? consult.getAskedAt().format(formatter) : "")
                             .answeredBy(consult.getAnsweredBy())
-                            .answeredByName(vetNameMap.get(consult.getAnsweredBy()))
+                            .answeredByName(vetName)
                             .answered(answered)
                             .build();
                 })
@@ -143,31 +154,36 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
         if (consultation == null) {
             throw new RuntimeException("兽医咨询记录不存在");
         }
-        
+
         return consultation;
     }
 
     @Override
     public void createVetConsultation(VetConsultationCreateRequest createRequest) {
-        // 验证参数
+        // [核心修复] 严格参数校验，防止 NPE
+        if (createRequest == null) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (createRequest.getUserId() == null) {
+            throw new RuntimeException("提问用户不能为空");
+        }
+        if (createRequest.getPetId() == null) {
+            throw new RuntimeException("请选择咨询的宠物");
+        }
         if (!StringUtils.hasText(createRequest.getQuestion())) {
             throw new RuntimeException("咨询问题不能为空");
         }
 
         // 验证宠物是否存在
-        if (createRequest.getPetId() != null) {
-            Pet pet = petService.getPetById(createRequest.getPetId());
-            if (pet == null) {
-                throw new RuntimeException("关联的宠物不存在");
-            }
+        Pet pet = petService.getPetById(createRequest.getPetId());
+        if (pet == null) {
+            throw new RuntimeException("关联的宠物不存在");
         }
 
         // 验证提问用户是否存在
-        if (createRequest.getUserId() != null) {
-            User user = userService.getUserById(createRequest.getUserId());
-            if (user == null) {
-                throw new RuntimeException("提问用户不存在");
-            }
+        User user = userService.getUserById(createRequest.getUserId());
+        if (user == null) {
+            throw new RuntimeException("提问用户不存在");
         }
 
         // 解析提问时间
@@ -196,9 +212,6 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
         if (!success) {
             throw new RuntimeException("创建兽医咨询记录失败");
         }
-
-        log.info("创建兽医咨询记录成功: userId={}, petId={}, consultId={}", 
-                createRequest.getUserId(), createRequest.getPetId(), consultation.getConsultId());
     }
 
     @Override
@@ -255,8 +268,6 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
         if (!success) {
             throw new RuntimeException("更新兽医咨询记录失败");
         }
-
-        log.info("更新兽医咨询记录成功: consultId={}", updateRequest.getConsultId());
     }
 
     @Override
@@ -276,8 +287,6 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
         if (!success) {
             throw new RuntimeException("删除兽医咨询记录失败");
         }
-
-        log.info("删除兽医咨询记录成功: consultId={}", consultId);
     }
 
     @Override
@@ -298,8 +307,6 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
         if (!success) {
             throw new RuntimeException("批量删除兽医咨询记录失败");
         }
-
-        log.info("批量删除兽医咨询记录成功，删除数量: {}", consultIds.size());
     }
 
     @Override
@@ -341,8 +348,6 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
         if (!success) {
             throw new RuntimeException("回答咨询失败");
         }
-
-        log.info("兽医回答咨询成功: consultId={}, answeredBy={}", consultId, vetId);
     }
 
     /**
@@ -356,7 +361,8 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
                 .collect(Collectors.toList());
 
         if (petIds.isEmpty()) {
-            return Map.of();
+            // [核心修复] 返回可变空 HashMap，防止 ImmutableMap 引发潜在问题
+            return new java.util.HashMap<>();
         }
 
         List<Pet> pets = petService.listByIds(petIds);
@@ -375,14 +381,14 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
                 .collect(Collectors.toList());
 
         if (userIds.isEmpty()) {
-            return Map.of();
+            return new java.util.HashMap<>();
         }
 
         List<User> users = userService.listByIds(userIds);
         return users.stream()
-                .collect(Collectors.toMap(User::getUserId, 
-                    user -> user.getFullName() != null ? user.getFullName() : 
-                           (user.getUsername() != null ? user.getUsername() : "未知")));
+                .collect(Collectors.toMap(User::getUserId,
+                        user -> user.getFullName() != null ? user.getFullName() :
+                                (user.getUsername() != null ? user.getUsername() : "未知")));
     }
 
     /**
@@ -396,13 +402,13 @@ public class VetConsultationServiceImpl extends ServiceImpl<VetConsultationMappe
                 .collect(Collectors.toList());
 
         if (vetIds.isEmpty()) {
-            return Map.of();
+            return new java.util.HashMap<>();
         }
 
         List<User> vets = userService.listByIds(vetIds);
         return vets.stream()
-                .collect(Collectors.toMap(User::getUserId, 
-                    user -> user.getFullName() != null ? user.getFullName() : 
-                           (user.getUsername() != null ? user.getUsername() : "未知")));
+                .collect(Collectors.toMap(User::getUserId,
+                        user -> user.getFullName() != null ? user.getFullName() :
+                                (user.getUsername() != null ? user.getUsername() : "未知")));
     }
 }

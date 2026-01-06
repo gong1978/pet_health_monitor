@@ -7,7 +7,6 @@
         </div>
       </template>
 
-      <!-- 搜索区域 -->
       <div class="search-form">
         <el-form :inline="true" :model="searchForm" class="demo-form-inline">
           <el-form-item label="宠物">
@@ -20,7 +19,7 @@
               <el-option v-for="user in userList" :key="user.userId" :label="user.fullName || user.username" :value="user.userId" />
             </el-select>
           </el-form-item>
-          <el-form-item label="回答兽医">
+          <el-form-item v-if="isAdmin || isVet" label="回答兽医">
             <el-select v-model="searchForm.answeredBy" placeholder="请选择兽医" clearable style="width: 150px">
               <el-option v-for="vet in vetList" :key="vet.userId" :label="vet.fullName || vet.username" :value="vet.userId" />
             </el-select>
@@ -41,162 +40,118 @@
         </el-form>
       </div>
 
-      <!-- 操作按钮 -->
       <div class="table-header">
         <div class="left-panel">
           <el-button type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon>新增咨询
           </el-button>
-          <el-button 
-            v-if="isAdmin || isVet"
-            type="danger" 
-            :disabled="multipleSelection.length === 0" 
-            @click="handleBatchDelete"
+          <el-button
+              v-if="isAdmin || isVet"
+              type="danger"
+              :disabled="multipleSelection.length === 0"
+              @click="handleBatchDelete"
           >
             <el-icon><Delete /></el-icon>批量删除
           </el-button>
         </div>
       </div>
 
-      <!-- 数据表格 -->
       <el-table :data="tableData" v-loading="loading" @selection-change="handleSelectionChange" style="width: 100%">
         <el-table-column v-if="isAdmin || isVet" type="selection" width="55" />
-        <el-table-column prop="consultId" label="咨询ID" width="80" />
-        <el-table-column prop="petName" label="宠物名字" min-width="120">
+        <el-table-column prop="consultId" label="ID" width="80" />
+        <el-table-column prop="petName" label="宠物" min-width="100">
           <template #default="{ row }">{{ row.petName || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="userName" label="提问用户" min-width="120">
+        <el-table-column prop="userName" label="提问人" min-width="100">
           <template #default="{ row }">{{ row.userName || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="question" label="咨询问题" min-width="200">
+        <el-table-column prop="question" label="问题" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="answered" label="状态" width="100">
           <template #default="{ row }">
-            <el-tooltip :content="row.question" placement="top" v-if="row.question">
-              <span class="text-ellipsis">{{ row.question }}</span>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-        <el-table-column prop="answered" label="回答状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.answered ? 'success' : 'warning'">
-              {{ row.answered ? '已回答' : '未回答' }}
-            </el-tag>
+            <el-tag :type="row.answered ? 'success' : 'warning'">{{ row.answered ? '已回答' : '待处理' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="askedAt" label="提问时间" width="160" />
-        <el-table-column prop="answeredByName" label="回答兽医" width="120">
+        <el-table-column prop="answeredByName" label="回答人" width="100">
           <template #default="{ row }">{{ row.answeredByName || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" :width="isPetOwner ? '120' : '220'" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button v-if="(isAdmin || isVet) && !row.answered" size="small" type="success" @click="handleAnswer(row)">回答</el-button>
             <el-button v-if="isAdmin || isVet" size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" @click="handleView(row)">详情</el-button>
-            <el-popconfirm title="确定要删除这条咨询吗？" @confirm="handleDelete(row)">
-              <template #reference>
-                <el-button size="small" type="danger">删除</el-button>
-              </template>
+            <el-popconfirm v-if="isAdmin || isVet || isOwner(row)" title="确定删除?" @confirm="handleDelete(row)">
+              <template #reference><el-button size="small" type="danger">删除</el-button></template>
             </el-popconfirm>
           </template>
         </el-table-column>
       </el-table>
 
-      <!-- 分页组件 -->
       <div class="pagination">
-        <el-pagination v-model:current-page="pageInfo.page" v-model:page-size="pageInfo.size" 
-          :page-sizes="[10, 20, 50, 100]" :total="pageInfo.total" 
-          layout="total, sizes, prev, pager, next, jumper" 
-          @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+        <el-pagination v-model:current-page="pageInfo.page" v-model:page-size="pageInfo.size" :total="pageInfo.total" layout="total, prev, pager, next" @size-change="handleSizeChange" @current-change="handleCurrentChange" />
       </div>
     </el-card>
 
-    <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="700px" :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" :close-on-click-modal="false">
       <el-form ref="consultFormRef" :model="consultForm" :rules="rules" label-width="100px">
-        <el-form-item label="宠物">
+        <el-form-item label="宠物" prop="petId">
           <el-select v-model="consultForm.petId" placeholder="请选择宠物" style="width: 100%">
             <el-option v-for="pet in petList" :key="pet.petId" :label="pet.name" :value="pet.petId" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="isAdmin || isVet" label="提问用户">
+
+        <el-form-item v-if="isAdmin" label="提问用户">
           <el-select v-model="consultForm.userId" placeholder="请选择用户" style="width: 100%">
             <el-option v-for="user in userList" :key="user.userId" :label="user.fullName || user.username" :value="user.userId" />
           </el-select>
         </el-form-item>
-        <el-form-item label="咨询问题" prop="question">
-          <el-input v-model="consultForm.question" type="textarea" :rows="4" 
-            placeholder="请输入咨询问题" maxlength="1000" show-word-limit />
+
+        <el-form-item label="问题描述" prop="question">
+          <el-input v-model="consultForm.question" type="textarea" :rows="4" maxlength="500" show-word-limit />
         </el-form-item>
-        <el-form-item label="兽医回复" v-if="isEdit">
-          <el-input v-model="consultForm.answer" type="textarea" :rows="4" 
-            placeholder="请输入兽医回复" maxlength="1000" show-word-limit />
-        </el-form-item>
-        <el-form-item label="回答兽医" v-if="isEdit">
-          <el-select v-model="consultForm.answeredBy" placeholder="请选择回答兽医" style="width: 100%">
-            <el-option label="无回答" :value="null" />
-            <el-option v-for="vet in vetList" :key="vet.userId" :label="vet.fullName || vet.username" :value="vet.userId" />
-          </el-select>
+
+        <template v-if="isEdit && (isAdmin || isVet)">
+          <el-divider>回答区域</el-divider>
+          <el-form-item label="回答内容">
+            <el-input v-model="consultForm.answer" type="textarea" :rows="4" />
+          </el-form-item>
+        </template>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitting">提交</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="answerDialogVisible" title="回复咨询" width="500px">
+      <div style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
+        <p><strong>问题：</strong>{{ currentConsult.question }}</p>
+      </div>
+      <el-form>
+        <el-form-item label="回复内容">
+          <el-input v-model="answerContent" type="textarea" :rows="5" placeholder="请输入专业建议..." />
         </el-form-item>
       </el-form>
       <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSubmit" :loading="submitting">
-            {{ isEdit ? '更新' : '创建' }}
-          </el-button>
-        </div>
+        <el-button @click="answerDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmitAnswer" :loading="submitting">提交回复</el-button>
       </template>
     </el-dialog>
 
-    <!-- 回答对话框 -->
-    <el-dialog v-model="answerDialogVisible" title="兽医回答" width="600px" :close-on-click-modal="false">
-      <div class="answer-content">
-        <el-descriptions title="咨询信息" :column="1" border>
-          <el-descriptions-item label="宠物名字">{{ currentConsult.petName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="提问用户">{{ currentConsult.userName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="提问时间">{{ currentConsult.askedAt }}</el-descriptions-item>
-          <el-descriptions-item label="咨询问题">
-            <div style="white-space: pre-wrap; max-height: 150px; overflow-y: auto;">
-              {{ currentConsult.question }}
-            </div>
-          </el-descriptions-item>
-        </el-descriptions>
-        
-        <div style="margin-top: 20px;">
-          <label style="font-weight: bold; margin-bottom: 10px; display: block;">兽医回答：</label>
-          <el-input v-model="answerContent" type="textarea" :rows="5" 
-            placeholder="请输入您的专业回答" maxlength="1000" show-word-limit />
-        </div>
-      </div>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="answerDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSubmitAnswer" :loading="submitting">提交回答</el-button>
-        </div>
-      </template>
-    </el-dialog>
-
-    <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="咨询详情" width="700px">
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="咨询ID">{{ viewConsult.consultId }}</el-descriptions-item>
-        <el-descriptions-item label="宠物名字">{{ viewConsult.petName || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="提问用户">{{ viewConsult.userName || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="回答状态">
-          <el-tag :type="viewConsult.answered ? 'success' : 'warning'">
-            {{ viewConsult.answered ? '已回答' : '未回答' }}
-          </el-tag>
+    <el-dialog v-model="detailDialogVisible" title="咨询详情" width="600px">
+      <el-descriptions :column="1" border>
+        <el-descriptions-item label="宠物">{{ viewConsult.petName }}</el-descriptions-item>
+        <el-descriptions-item label="提问人">{{ viewConsult.userName }}</el-descriptions-item>
+        <el-descriptions-item label="提问时间">{{ viewConsult.askedAt }}</el-descriptions-item>
+        <el-descriptions-item label="问题内容">
+          <div style="white-space: pre-wrap;">{{ viewConsult.question }}</div>
         </el-descriptions-item>
-        <el-descriptions-item label="提问时间" :span="2">{{ viewConsult.askedAt }}</el-descriptions-item>
-        <el-descriptions-item label="回答兽医" :span="2">{{ viewConsult.answeredByName || '暂无' }}</el-descriptions-item>
-        <el-descriptions-item label="咨询问题" :span="2">
-          <div style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
-            {{ viewConsult.question || '-' }}
-          </div>
+        <el-descriptions-item label="回复状态">
+          <el-tag :type="viewConsult.answered ? 'success' : 'warning'">{{ viewConsult.answered ? '已回答' : '待处理' }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="兽医回复" :span="2">
-          <div style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
-            {{ viewConsult.answer || '暂无回复' }}
-          </div>
+        <el-descriptions-item label="回复人" v-if="viewConsult.answered">{{ viewConsult.answeredByName }}</el-descriptions-item>
+        <el-descriptions-item label="回复内容" v-if="viewConsult.answered">
+          <div style="white-space: pre-wrap;">{{ viewConsult.answer }}</div>
         </el-descriptions-item>
       </el-descriptions>
     </el-dialog>
@@ -214,8 +169,6 @@ import { getMyPets } from '@/api/userPet'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
-
-// 响应式数据
 const loading = ref(false)
 const submitting = ref(false)
 const dialogVisible = ref(false)
@@ -230,286 +183,121 @@ const userList = ref([])
 const vetList = ref([])
 const answerContent = ref('')
 const currentConsult = ref({})
-
-// 搜索表单
-const searchForm = reactive({
-  petId: null, userId: null, answeredBy: null, answered: null, keyword: ''
-})
-
-// 分页信息
-const pageInfo = reactive({ page: 1, size: 10, total: 0 })
-
-// 咨询表单
-const consultForm = reactive({
-  consultId: null, petId: null, userId: null, question: '', answer: '', answeredBy: null
-})
-
-// 查看咨询详情
 const viewConsult = ref({})
 
-// 表单验证规则
+const searchForm = reactive({ petId: null, userId: null, answeredBy: null, answered: null, keyword: '' })
+const pageInfo = reactive({ page: 1, size: 10, total: 0 })
+const consultForm = reactive({ consultId: null, petId: null, userId: null, question: '', answer: '', answeredBy: null })
+
 const rules = {
-  question: [{ required: true, message: '请输入咨询问题', trigger: 'blur' }]
+  petId: [{ required: true, message: '请选择宠物', trigger: 'change' }],
+  question: [{ required: true, message: '请输入问题', trigger: 'blur' }]
 }
 
-// 计算属性
-const dialogTitle = computed(() => isEdit.value ? '编辑咨询' : '新增咨询')
-
-// 用户角色判断
+const dialogTitle = computed(() => isEdit.value ? '编辑咨询' : '发起咨询')
 const isAdmin = computed(() => authStore.userInfo?.role === 1)
 const isVet = computed(() => authStore.userInfo?.role === 2)
-const isPetOwner = computed(() => {
-  const role = authStore.userInfo?.role
-  return role === 3 || role === 0 || (!isAdmin.value && !isVet.value)
-})
+const isPetOwner = computed(() => !isAdmin.value && !isVet.value)
 
-// 获取宠物列表
+// 辅助函数：判断是否是自己的记录
+const isOwner = (row) => {
+  return authStore.userInfo?.userId === row.userId
+}
+
+// 核心修复：宠物列表加载逻辑
 const fetchPetList = async () => {
   try {
-    console.log('获取宠物列表，当前用户角色:', { isAdmin: isAdmin.value, isVet: isVet.value, isPetOwner: isPetOwner.value })
-    
-    let response
+    let res
     if (isPetOwner.value) {
-      // 宠物主人：只获取自己关联的宠物
-      console.log('宠物主人调用 getMyPets()')
-      response = await getMyPets()
-      if (response.code === 200) {
-        petList.value = response.data || []
-        console.log('宠物主人获取到宠物列表:', petList.value)
-      }
+      // 宠物主人只查自己的
+      res = await getMyPets()
+      if (res.code === 200) petList.value = res.data || []
     } else {
-      // 管理员和兽医：获取所有宠物
-      console.log('管理员/兽医调用 getPets()')
-      response = await getPets({ page: 1, size: 1000 })
-      if (response.code === 200) {
-        petList.value = response.data.records || []
-        console.log('管理员/兽医获取到宠物列表:', petList.value)
-      }
+      // 管理员/兽医查所有
+      res = await getPets({ page: 1, size: 1000 })
+      if (res.code === 200) petList.value = res.data.records || []
     }
-  } catch (error) {
-    console.error('获取宠物列表失败:', error)
+  } catch (e) {
+    console.warn('加载宠物列表异常', e)
     petList.value = []
   }
 }
 
-// 获取用户列表
+// 核心修复：权限控制，非管理员/兽医不请求用户列表
 const fetchUserList = async () => {
+  if (!isAdmin.value && !isVet.value) return
   try {
-    const response = await getUsers({ page: 1, size: 1000 })
-    if (response.code === 200) {
-      userList.value = response.data.records
-    }
-  } catch (error) {
-    console.error('获取用户列表失败:', error)
-  }
+    const res = await getUsers({ page: 1, size: 1000 })
+    if (res.code === 200) userList.value = res.data.records
+  } catch (e) { console.warn(e) }
 }
 
-// 获取兽医列表
 const fetchVetList = async () => {
+  if (!isAdmin.value && !isVet.value) return
   try {
-    const response = await getUsers({ page: 1, size: 1000, role: 2 })
-    if (response.code === 200) {
-      vetList.value = response.data.records
-    }
-  } catch (error) {
-    console.error('获取兽医列表失败:', error)
-  }
+    const res = await getUsers({ page: 1, size: 1000, role: 2 })
+    if (res.code === 200) vetList.value = res.data.records
+  } catch (e) { console.warn(e) }
 }
 
-// 获取咨询列表
-const fetchConsultations = async () => {
+const fetchData = async () => {
   loading.value = true
   try {
-    console.log('当前用户角色判断:', { isAdmin: isAdmin.value, isVet: isVet.value, isPetOwner: isPetOwner.value })
-    console.log('宠物列表:', petList.value)
-    
-    if (isPetOwner.value) {
-      // 宠物主人：只获取自己宠物的咨询记录
-      const userPetIds = petList.value.map(pet => pet.petId || pet.id)
-      console.log('宠物主人的宠物ID列表:', userPetIds)
-      
-      if (userPetIds.length === 0) {
-        // 如果没有宠物，显示空数据
-        console.log('宠物主人没有关联宠物，显示空数据')
-        tableData.value = []
-        pageInfo.total = 0
-        return
-      }
-      
-      // 获取所有数据然后前端过滤
-      let params = {
-        ...searchForm,
-        page: 1,
-        size: 1000 // 获取更多数据用于过滤
-      }
-      console.log('宠物主人查询参数:', params)
-      
-      const response = await getVetConsultations(params)
-      if (response.code === 200) {
-        let allRecords = response.data.records || []
-        console.log('获取到的所有咨询数据:', allRecords)
-        
-        // 前端过滤：只保留用户宠物的数据
-        const filteredRecords = allRecords.filter(record => {
-          const recordPetId = record.petId || record.pet_id
-          const isMatch = userPetIds.includes(recordPetId)
-          console.log(`记录 ${record.consultId}: petId=${recordPetId}, 是否匹配=${isMatch}`)
-          return isMatch
-        })
-        
-        console.log('过滤后的咨询数据:', filteredRecords)
-        
-        // 手动分页
-        const total = filteredRecords.length
-        const start = (pageInfo.page - 1) * pageInfo.size
-        const end = start + pageInfo.size
-        const paginatedRecords = filteredRecords.slice(start, end)
-        
-        tableData.value = paginatedRecords
-        pageInfo.total = total
-      }
-    } else {
-      // 管理员和兽医：获取所有数据
-      const params = {
-        ...searchForm,
-        page: pageInfo.page,
-        size: pageInfo.size
-      }
-      console.log('管理员/兽医查询参数:', params)
-      
-      const response = await getVetConsultations(params)
-      if (response.code === 200) {
-        console.log('管理员/兽医获取到的咨询数据:', response.data)
-        tableData.value = response.data.records || []
-        pageInfo.total = response.data.total || 0
-      }
+    // 宠物主人：虽然前端会传参，但后端Controller已强制加了数据隔离，这里为了逻辑完整性保留传参
+    // 注意：如果是宠物主人，getMyPets 获取到的是自己的宠物ID列表，可以用来辅助前端过滤（可选），
+    // 但最安全的是依赖后端的过滤。
+    const params = { ...searchForm, page: pageInfo.page, size: pageInfo.size }
+
+    const res = await getVetConsultations(params)
+
+    if (res.code === 200) {
+      tableData.value = res.data.records
+      pageInfo.total = res.data.total
     }
-  } catch (error) {
-    console.error('获取咨询数据失败:', error)
-    ElMessage.error(error.message || '获取咨询列表失败')
-    tableData.value = []
-    pageInfo.total = 0
+  } catch (e) {
+    if (!e.message?.includes('404')) ElMessage.error('加载数据失败')
   } finally {
     loading.value = false
   }
 }
 
-// 搜索
-const handleSearch = () => {
-  pageInfo.page = 1
-  fetchConsultations()
-}
+const handleSearch = () => { pageInfo.page = 1; fetchData() }
+const handleReset = () => { Object.assign(searchForm, { petId: null, userId: null, answered: null, keyword: '' }); handleSearch() }
+const handleSizeChange = (val) => { pageInfo.size = val; fetchData() }
+const handleCurrentChange = (val) => { pageInfo.page = val; fetchData() }
+const handleSelectionChange = (val) => multipleSelection.value = val
 
-// 重置
-const handleReset = () => {
-  Object.assign(searchForm, { petId: null, userId: null, answeredBy: null, answered: null, keyword: '' })
-  pageInfo.page = 1
-  fetchConsultations()
-}
-
-// 分页变化
-const handleSizeChange = (size) => {
-  pageInfo.size = size
-  pageInfo.page = 1
-  fetchConsultations()
-}
-
-const handleCurrentChange = (page) => {
-  pageInfo.page = page
-  fetchConsultations()
-}
-
-// 选择变化
-const handleSelectionChange = (selection) => {
-  multipleSelection.value = selection
-}
-
-// 新增
 const handleAdd = () => {
   isEdit.value = false
-  resetForm()
-  
-  // 宠物主人自动设置为当前登录用户
-  if (isPetOwner.value) {
-    consultForm.userId = authStore.userInfo?.userId || authStore.userInfo?.id
-  }
-  
+  Object.assign(consultForm, { consultId: null, petId: null, userId: authStore.userInfo.userId, question: '', answer: '', answeredBy: null })
   dialogVisible.value = true
 }
-
-// 编辑
 const handleEdit = (row) => {
-  // 权限检查：宠物主人不能编辑
-  if (isPetOwner.value) {
-    ElMessage.error('您没有权限编辑咨询记录')
-    return
-  }
-  
   isEdit.value = true
-  Object.assign(consultForm, {
-    consultId: row.consultId, petId: row.petId, userId: row.userId,
-    question: row.question, answer: row.answer || '', answeredBy: row.answeredBy
-  })
+  Object.assign(consultForm, row)
   dialogVisible.value = true
 }
-
-// 回答
 const handleAnswer = (row) => {
   currentConsult.value = { ...row }
   answerContent.value = ''
   answerDialogVisible.value = true
 }
+const handleView = (row) => { viewConsult.value = { ...row }; detailDialogVisible.value = true }
 
-// 查看详情
-const handleView = (row) => {
-  viewConsult.value = { ...row }
-  detailDialogVisible.value = true
-}
-
-// 删除
 const handleDelete = async (row) => {
-  try {
-    await deleteVetConsultation(row.consultId)
-    ElMessage.success('删除咨询成功')
-    fetchConsultations()
-  } catch (error) {
-    ElMessage.error(error.message || '删除咨询失败')
-  }
+  try { await deleteVetConsultation(row.consultId); ElMessage.success('删除成功'); fetchData() } catch(e){}
 }
-
-// 批量删除
 const handleBatchDelete = async () => {
-  // 权限检查：宠物主人不能批量删除
-  if (isPetOwner.value) {
-    ElMessage.error('您没有权限批量删除咨询')
-    return
-  }
-  
-  if (multipleSelection.value.length === 0) {
-    ElMessage.warning('请选择要删除的咨询')
-    return
-  }
-
   try {
-    await ElMessageBox.confirm('确定要删除选中的咨询吗？', '提示', {
-      confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
-    })
-
-    const consultIds = multipleSelection.value.map(item => item.consultId)
-    await batchDeleteVetConsultations(consultIds)
-    ElMessage.success('批量删除咨询成功')
-    fetchConsultations()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '批量删除咨询失败')
-    }
-  }
+    await batchDeleteVetConsultations(multipleSelection.value.map(i=>i.consultId))
+    ElMessage.success('删除成功')
+    fetchData()
+  } catch(e){}
 }
 
-// 提交表单
+// 核心修复：提交逻辑增强判空
 const handleSubmit = async () => {
   if (!consultFormRef.value) return
-
   await consultFormRef.value.validate(async (valid) => {
     if (valid) {
       submitting.value = true
@@ -517,18 +305,18 @@ const handleSubmit = async () => {
         const data = { ...consultForm }
         delete data.consultId
 
-        if (isEdit.value) {
-          await updateVetConsultation(consultForm.consultId, data)
-          ElMessage.success('更新咨询成功')
-        } else {
-          await createVetConsultation(data)
-          ElMessage.success('创建咨询成功')
-        }
+        let res
+        if (isEdit.value) res = await updateVetConsultation(consultForm.consultId, data)
+        else res = await createVetConsultation(data)
 
-        dialogVisible.value = false
-        fetchConsultations()
-      } catch (error) {
-        ElMessage.error(error.message || '操作失败')
+        // 只有 code=200 才算成功，否则视为失败（request.js 会弹窗）
+        if (res && res.code === 200) {
+          ElMessage.success('操作成功')
+          dialogVisible.value = false
+          fetchData()
+        }
+      } catch (e) {
+        console.error('操作中断:', e)
       } finally {
         submitting.value = false
       }
@@ -536,126 +324,38 @@ const handleSubmit = async () => {
   })
 }
 
-// 提交回答
 const handleSubmitAnswer = async () => {
-  if (!answerContent.value.trim()) {
-    ElMessage.warning('请输入回答内容')
-    return
-  }
-
+  if (!answerContent.value) return ElMessage.warning('请输入回复')
   submitting.value = true
   try {
-    await answerConsultation(currentConsult.value.consultId, answerContent.value)
-    ElMessage.success('回答提交成功')
-    answerDialogVisible.value = false
-    fetchConsultations()
-  } catch (error) {
-    ElMessage.error(error.message || '回答提交失败')
-  } finally {
-    submitting.value = false
-  }
+    const res = await answerConsultation(currentConsult.value.consultId, answerContent.value)
+    if (res && res.code === 200) {
+      ElMessage.success('回复成功')
+      answerDialogVisible.value = false
+      fetchData()
+    }
+  } catch(e){} finally { submitting.value = false }
 }
 
-// 重置表单
-const resetForm = () => {
-  Object.assign(consultForm, {
-    consultId: null, petId: null, userId: null, question: '', answer: '', answeredBy: null
-  })
-  if (consultFormRef.value) {
-    consultFormRef.value.clearValidate()
-  }
-}
-
-// 组件挂载时获取数据
 onMounted(async () => {
-  // 先获取宠物列表，再获取咨询数据
+  // 1. 先加载宠物
   await fetchPetList()
-  fetchUserList()
-  fetchVetList()
-  fetchConsultations()
+
+  // 2. [关键修复] 只有管理员/兽医才去加载用户列表，普通用户(gyh)直接跳过！
+  if (isAdmin.value || isVet.value) {
+    Promise.all([fetchUserList(), fetchVetList()]).catch(console.warn)
+  }
+
+  // 3. 加载列表
+  fetchData()
 })
 </script>
 
-<style scoped lang="scss">
-.vet-consultation-management {
-  padding: 20px;
-}
-
-.page-container {
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    .card-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: #333;
-    }
-  }
-}
-
-.search-form {
-  margin-bottom: 20px;
-  padding: 20px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-}
-
-.table-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-
-  .left-panel {
-    .el-button {
-      margin-right: 10px;
-    }
-  }
-}
-
-.pagination {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
-
-.dialog-footer {
-  text-align: right;
-}
-
-.text-ellipsis {
-  display: inline-block;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-
-.answer-content {
-  .el-descriptions {
-    margin-bottom: 20px;
-  }
-}
-
-@media (max-width: 768px) {
-  .vet-consultation-management {
-    padding: 10px;
-  }
-
-  .search-form {
-    .el-form-item {
-      display: block;
-      margin-right: 0;
-    }
-  }
-
-  .table-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-}
+<style scoped>
+.vet-consultation-management { padding: 20px; }
+.page-container .card-header { display: flex; justify-content: space-between; align-items: center; }
+.search-form { background: #f8f9fa; padding: 20px; margin-bottom: 20px; border-radius: 4px; }
+.table-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+.pagination { display: flex; justify-content: flex-end; margin-top: 20px; }
+.text-ellipsis { display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 </style>
