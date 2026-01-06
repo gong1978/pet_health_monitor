@@ -37,7 +37,7 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
     @Autowired
     private PetService petService;
 
-    // [新增] 注入 AlertService 用于发送预警
+    // 注入 AlertService 用于发送预警
     @Autowired
     private AlertService alertService;
 
@@ -126,8 +126,8 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
 
         validateSensorDataRanges(createRequest.getHeartRate(), createRequest.getTemperature(), createRequest.getActivity());
 
-        // [新增] 获取该宠物最近的一条历史数据，用于后续的心率波动对比
-        // 必须在保存当前新数据之前查询，否则查出来的就是当前数据自己
+        // 1. 获取该宠物最近的一条历史数据，用于后续的心率波动对比
+        // 注意：必须在保存当前新数据之前查询，否则查出来的就是当前数据自己
         SensorData lastData = this.getOne(new QueryWrapper<SensorData>()
                 .eq("pet_id", createRequest.getPetId())
                 .orderByDesc("collected_at")
@@ -166,7 +166,7 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
 
         log.info("创建传感器数据成功: petId={}, dataId={}, activity={}", createRequest.getPetId(), sensorData.getDataId(), activity);
 
-        // [新增] 执行预警检测逻辑
+        // 2. 执行预警检测逻辑
         checkAndTriggerAlerts(sensorData, lastData);
     }
 
@@ -235,37 +235,56 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
     }
 
     /**
-     * [新增] 检测并触发预警
+     * 检测并触发预警
+     * 包含：体温过高、体温过低、心率波动过大、活动量异常低
      * @param currentData 当前接收到的数据
      * @param lastData 数据库中最近一次的历史数据（可为 null）
      */
     private void checkAndTriggerAlerts(SensorData currentData, SensorData lastData) {
+        Integer petId = currentData.getPetId();
+        LocalDateTime now = LocalDateTime.now();
+
         // 1. 体温检测逻辑
-        // 设定阈值：> 39 为略高，< 37 为略低
         if (currentData.getTemperature() != null) {
-            if (currentData.getTemperature() > 39.0) {
-                createAlert(currentData.getPetId(), "体温异常",
-                        "检测到体温略高 (" + currentData.getTemperature() + "°C)，请注意观察。", "warning");
-            } else if (currentData.getTemperature() < 37.0) {
-                createAlert(currentData.getPetId(), "体温异常",
-                        "检测到体温略低 (" + currentData.getTemperature() + "°C)，请注意保暖。", "warning");
+            // 阈值：> 39.5 为略高
+            if (currentData.getTemperature() > 39.5) {
+                createAlert(petId, "体温异常",
+                        "检测到体温过高 (" + currentData.getTemperature() + "°C)，请注意观察是否中暑或发烧。", "warning");
+            }
+            // 阈值：< 37.0 为略低
+            else if (currentData.getTemperature() < 37.0) {
+                createAlert(petId, "体温异常",
+                        "检测到体温偏低 (" + currentData.getTemperature() + "°C)，请注意保暖。", "warning");
             }
         }
 
         // 2. 心率波动检测逻辑
-        // 只有当存在历史数据且心率数据均有效时才进行对比
         if (lastData != null && currentData.getHeartRate() != null && lastData.getHeartRate() != null) {
             int diff = Math.abs(currentData.getHeartRate() - lastData.getHeartRate());
             // 设定波动阈值为 30 bpm
             if (diff > 30) {
-                createAlert(currentData.getPetId(), "心率波动异常",
+                createAlert(petId, "心率波动异常",
                         "心率短时间内波动幅度较大 (变化值: " + diff + " bpm)，请关注宠物状态。", "warning");
+            }
+        }
+
+        // 3. 活动量检测逻辑 (低活动量预警)
+        if (currentData.getActivity() != null) {
+            // 仅在白天 (8点 - 20点) 检测低活动量，避免夜间睡觉时误报
+            int hour = currentData.getCollectedAt() != null ? currentData.getCollectedAt().getHour() : now.getHour();
+
+            if (hour >= 8 && hour <= 20) {
+                // 如果活动量低于 50 (假设单位为步数或活跃指数)
+                if (currentData.getActivity() < 50) {
+                    createAlert(petId, "活动量异常",
+                            "监测到白天活动量极低 (" + currentData.getActivity() + ")，可能存在身体不适或精神萎靡。", "warning");
+                }
             }
         }
     }
 
     /**
-     * [新增] 辅助方法：构建并发送预警请求
+     * 辅助方法：构建并发送预警请求
      */
     private void createAlert(Integer petId, String alertType, String message, String level) {
         try {
