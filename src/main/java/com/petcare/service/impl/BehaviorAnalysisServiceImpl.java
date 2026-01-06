@@ -38,6 +38,9 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
 
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    // [配置] 最大持续时间为 30 分钟
+    private static final long MAX_DURATION_MINUTES = 30;
+
     @Override
     public BehaviorAnalysisPageResponse pageQuery(BehaviorAnalysisQueryRequest queryRequest) {
         if (queryRequest.getPage() == null || queryRequest.getPage() < 1) queryRequest.setPage(1);
@@ -47,27 +50,49 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
         if (queryRequest.getPetId() != null) queryWrapper.eq("pet_id", queryRequest.getPetId());
         if (StringUtils.hasText(queryRequest.getBehaviorType())) queryWrapper.eq("behavior_type", queryRequest.getBehaviorType());
 
+        // 其它查询条件
+        if (queryRequest.getMinConfidence() != null) queryWrapper.ge("confidence", queryRequest.getMinConfidence());
+        if (queryRequest.getMaxConfidence() != null) queryWrapper.le("confidence", queryRequest.getMaxConfidence());
+        if (StringUtils.hasText(queryRequest.getStartTimeFrom())) queryWrapper.ge("start_time", parseTime(queryRequest.getStartTimeFrom()));
+        if (StringUtils.hasText(queryRequest.getStartTimeTo())) queryWrapper.le("start_time", parseTime(queryRequest.getStartTimeTo()));
+
         queryWrapper.orderByDesc("start_time");
 
         Page<BehaviorAnalysis> page = new Page<>(queryRequest.getPage(), queryRequest.getSize());
-        page = this.page(page, queryWrapper);
+        this.page(page, queryWrapper);
 
         List<BehaviorAnalysis> records = page.getRecords();
         Map<Integer, String> petNameMap = getPetNameMap(records);
 
         List<BehaviorAnalysisPageResponse.BehaviorAnalysisResponse> responseList = records.stream()
-                .map(behavior -> {
-                    Long duration = calculateDuration(behavior.getStartTime(), behavior.getEndTime());
+                .map(item -> {
+                    LocalDateTime start = item.getStartTime();
+                    LocalDateTime end = item.getEndTime();
+
+                    // 动态计算显示时长
+                    Long displayDuration = null;
+
+                    // [核心逻辑] 如果当前是"进行中"(end==null)，且距离开始时间已超过30分钟
+                    if (end == null && start != null) {
+                        LocalDateTime autoEndTime = start.plusMinutes(MAX_DURATION_MINUTES);
+                        if (LocalDateTime.now().isAfter(autoEndTime)) {
+                            end = autoEndTime;
+                            displayDuration = MAX_DURATION_MINUTES;
+                        }
+                    } else if (start != null && end != null) {
+                        displayDuration = Duration.between(start, end).toMinutes();
+                    }
+
                     return BehaviorAnalysisPageResponse.BehaviorAnalysisResponse.builder()
-                            .behaviorId(behavior.getBehaviorId())
-                            .petId(behavior.getPetId())
-                            .petName(petNameMap.getOrDefault(behavior.getPetId(), "未知"))
-                            .behaviorType(behavior.getBehaviorType())
-                            .imageUrl(behavior.getImageUrl())
-                            .startTime(behavior.getStartTime() != null ? behavior.getStartTime().format(formatter) : "")
-                            .endTime(behavior.getEndTime() != null ? behavior.getEndTime().format(formatter) : "")
-                            .duration(duration)
-                            .confidence(behavior.getConfidence())
+                            .behaviorId(item.getBehaviorId())
+                            .petId(item.getPetId())
+                            .petName(petNameMap.getOrDefault(item.getPetId(), "未知"))
+                            .behaviorType(item.getBehaviorType())
+                            .imageUrl(item.getImageUrl())
+                            .startTime(start != null ? start.format(formatter) : "")
+                            .endTime(end != null ? end.format(formatter) : "进行中")
+                            .duration(displayDuration)
+                            .confidence(item.getConfidence())
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -81,9 +106,6 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
                 .build();
     }
 
-    /**
-     * 创建行为记录 (保留之前的 5分钟截断 + 仿AI随机逻辑)
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createBehaviorAnalysis(BehaviorAnalysisCreateRequest createRequest) {
@@ -95,29 +117,31 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
         LocalDateTime newStartTime = parseTime(createRequest.getStartTime());
         if (newStartTime == null) newStartTime = LocalDateTime.now();
 
-        // 1. 查找上一条未结束的行为
+        // 1. 查找该宠物上一条"未结束"的行为
         QueryWrapper<BehaviorAnalysis> lastRecordQuery = new QueryWrapper<>();
         lastRecordQuery.eq("pet_id", createRequest.getPetId())
                 .isNull("end_time")
-                .ne(createRequest.getEndTime() != null, "behavior_id", -1)
                 .orderByDesc("start_time")
                 .last("LIMIT 1");
 
         BehaviorAnalysis lastRecord = this.getOne(lastRecordQuery);
 
-        if (lastRecord != null && lastRecord.getStartTime().isBefore(newStartTime)) {
-            // [5分钟限制逻辑]
-            LocalDateTime maxAllowedEndTime = lastRecord.getStartTime().plusMinutes(5);
-            LocalDateTime finalEndTime = newStartTime;
-            if (newStartTime.isAfter(maxAllowedEndTime)) {
-                finalEndTime = maxAllowedEndTime;
+        // [核心修改] 截断上一条行为：增加 30 分钟封顶逻辑
+        if (lastRecord != null) {
+            LocalDateTime lastStart = lastRecord.getStartTime();
+            LocalDateTime actualEnd = newStartTime;
+            LocalDateTime maxAllowedEnd = lastStart.plusMinutes(MAX_DURATION_MINUTES);
+
+            if (actualEnd.isAfter(maxAllowedEnd)) {
+                actualEnd = maxAllowedEnd;
             }
-            lastRecord.setEndTime(finalEndTime);
+
+            lastRecord.setEndTime(actualEnd);
             this.updateById(lastRecord);
-            log.info("自动结束上一条行为: behaviorId={}, endTime={}", lastRecord.getBehaviorId(), finalEndTime);
+            log.info("自动结束上一条行为(30分钟封顶): behaviorId={}", lastRecord.getBehaviorId());
         }
 
-        // 2. [仿AI置信度]
+        // 2. 仿AI置信度生成
         Float finalConfidence = createRequest.getConfidence();
         if (finalConfidence == null) {
             float min = 0.85f, max = 0.99f;
@@ -125,6 +149,7 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
             finalConfidence = (float)(Math.round(finalConfidence * 100)) / 100;
         }
 
+        // 3. 创建新行为
         BehaviorAnalysis behaviorAnalysis = BehaviorAnalysis.builder()
                 .petId(createRequest.getPetId())
                 .behaviorType(createRequest.getBehaviorType())
@@ -138,45 +163,37 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
         log.info("创建成功: behaviorId={}", behaviorAnalysis.getBehaviorId());
     }
 
-    /**
-     * [核心修复] 更新行为记录 - 增加无变更检测，防止 SQL 报错
-     */
     @Override
     public void updateBehaviorAnalysis(BehaviorAnalysisUpdateRequest updateRequest) {
         if (updateRequest.getBehaviorId() == null) throw new RuntimeException("ID不能为空");
 
-        // 1. 先查旧值，确保存在
         BehaviorAnalysis existing = this.getById(updateRequest.getBehaviorId());
         if (existing == null) throw new RuntimeException("记录不存在");
 
         BehaviorAnalysis.BehaviorAnalysisBuilder builder = BehaviorAnalysis.builder();
         builder.behaviorId(updateRequest.getBehaviorId());
 
-        // [新增] 变更标记
         boolean isChanged = false;
 
-        // 2. 逐个比对：只有值确实变了，才设置到 builder 里
+        // 字段比对逻辑
         if (updateRequest.getPetId() != null && !updateRequest.getPetId().equals(existing.getPetId())) {
             builder.petId(updateRequest.getPetId());
             isChanged = true;
         }
-
         if (StringUtils.hasText(updateRequest.getBehaviorType()) && !updateRequest.getBehaviorType().equals(existing.getBehaviorType())) {
             builder.behaviorType(updateRequest.getBehaviorType());
             isChanged = true;
         }
-
         if (updateRequest.getConfidence() != null && !updateRequest.getConfidence().equals(existing.getConfidence())) {
             builder.confidence(updateRequest.getConfidence());
             isChanged = true;
         }
-
         if (StringUtils.hasText(updateRequest.getImageUrl()) && !updateRequest.getImageUrl().equals(existing.getImageUrl())) {
             builder.imageUrl(updateRequest.getImageUrl());
             isChanged = true;
         }
 
-        // [重点] 开始时间：解析后对比
+        // 时间比对
         if (StringUtils.hasText(updateRequest.getStartTime())) {
             LocalDateTime newStart = parseTime(updateRequest.getStartTime());
             if (newStart != null && !newStart.equals(existing.getStartTime())) {
@@ -184,29 +201,22 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
                 isChanged = true;
             }
         }
-
-        // [重点] 结束时间：解析后对比
         if (StringUtils.hasText(updateRequest.getEndTime())) {
             LocalDateTime newEnd = parseTime(updateRequest.getEndTime());
-            // 如果原来的结束时间是 null，而现在传了新值，也算变更
-            // 如果原来有值，新值不同，也算变更
             if (newEnd != null && !newEnd.equals(existing.getEndTime())) {
                 builder.endTime(newEnd);
                 isChanged = true;
             }
         }
 
-        // 3. [关键逻辑] 如果没有变更，直接返回成功，不执行 SQL
-        if (!isChanged) {
-            log.info("数据未变更，跳过数据库更新: behaviorId={}", updateRequest.getBehaviorId());
-            return;
+        if (isChanged) {
+            if (!this.updateById(builder.build())) {
+                throw new RuntimeException("更新失败");
+            }
+            log.info("更新成功: behaviorId={}", updateRequest.getBehaviorId());
+        } else {
+            log.info("数据未变更，跳过更新: behaviorId={}", updateRequest.getBehaviorId());
         }
-
-        // 4. 执行更新
-        if (!this.updateById(builder.build())) {
-            throw new RuntimeException("更新失败");
-        }
-        log.info("更新成功: behaviorId={}", updateRequest.getBehaviorId());
     }
 
     private LocalDateTime parseTime(String timeStr) {
@@ -218,11 +228,6 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
         }
     }
 
-    private Long calculateDuration(LocalDateTime startTime, LocalDateTime endTime) {
-        if (startTime == null || endTime == null) return null;
-        return Duration.between(startTime, endTime).toMinutes();
-    }
-
     private Map<Integer, String> getPetNameMap(List<BehaviorAnalysis> records) {
         List<Integer> petIds = records.stream().map(BehaviorAnalysis::getPetId).distinct().collect(Collectors.toList());
         if (petIds.isEmpty()) return Map.of();
@@ -230,10 +235,23 @@ public class BehaviorAnalysisServiceImpl extends ServiceImpl<BehaviorAnalysisMap
                 .collect(Collectors.toMap(Pet::getPetId, p -> p.getName() != null ? p.getName() : "未知"));
     }
 
+    // 接口要求的 Long 类型方法 (必须有 @Override)
     @Override
     public BehaviorAnalysis getBehaviorAnalysisById(Long behaviorId) { return this.getById(behaviorId); }
     @Override
     public void deleteBehaviorAnalysis(Long behaviorId) { this.removeById(behaviorId); }
     @Override
     public void batchDeleteBehaviorAnalysis(List<Long> behaviorIds) { this.removeByIds(behaviorIds); }
+
+    // 兼容 Integer 类型的辅助方法 (可选，但不能有 @Override，也不能与 Long 版本发生擦除冲突)
+    public BehaviorAnalysis getBehaviorAnalysisById(Integer id) {
+        if (id == null) return null;
+        return this.getById(Long.valueOf(id));
+    }
+    public void deleteBehaviorAnalysis(Integer id) {
+        if (id != null) this.removeById(Long.valueOf(id));
+    }
+
+    // [已删除] batchDeleteBehaviorAnalysis(List<Integer> ids)
+    // 这个方法必须删除，因为 List<Integer> 和 List<Long> 在编译后是一样的，会导致冲突。
 }
