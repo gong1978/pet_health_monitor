@@ -3,6 +3,7 @@ package com.petcare.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.petcare.dto.AlertCreateRequest;
 import com.petcare.dto.SensorDataCreateRequest;
 import com.petcare.dto.SensorDataPageResponse;
 import com.petcare.dto.SensorDataQueryRequest;
@@ -10,6 +11,7 @@ import com.petcare.dto.SensorDataUpdateRequest;
 import com.petcare.entity.Pet;
 import com.petcare.entity.SensorData;
 import com.petcare.mapper.SensorDataMapper;
+import com.petcare.service.AlertService;
 import com.petcare.service.PetService;
 import com.petcare.service.SensorDataService;
 import lombok.extern.slf4j.Slf4j;
@@ -35,12 +37,15 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
     @Autowired
     private PetService petService;
 
+    // [新增] 注入 AlertService 用于发送预警
+    @Autowired
+    private AlertService alertService;
+
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final Random random = new Random();
 
     @Override
     public SensorDataPageResponse pageQuery(SensorDataQueryRequest queryRequest) {
-        // ... (保持原有的查询代码不变) ...
         if (queryRequest.getPage() == null || queryRequest.getPage() < 1) {
             queryRequest.setPage(1);
         }
@@ -121,6 +126,13 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
 
         validateSensorDataRanges(createRequest.getHeartRate(), createRequest.getTemperature(), createRequest.getActivity());
 
+        // [新增] 获取该宠物最近的一条历史数据，用于后续的心率波动对比
+        // 必须在保存当前新数据之前查询，否则查出来的就是当前数据自己
+        SensorData lastData = this.getOne(new QueryWrapper<SensorData>()
+                .eq("pet_id", createRequest.getPetId())
+                .orderByDesc("collected_at")
+                .last("LIMIT 1"));
+
         // 解析时间
         LocalDateTime collectedAt;
         if (StringUtils.hasText(createRequest.getCollectedAt())) {
@@ -133,7 +145,7 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
             collectedAt = LocalDateTime.now();
         }
 
-        // [核心修改]：如果活动量为空，则随机生成 (模拟传感器读取)
+        // 如果活动量为空，则随机生成 (模拟传感器读取)
         Integer activity = createRequest.getActivity();
         if (activity == null) {
             // 随机生成 0 ~ 3000 之间的活动量
@@ -153,6 +165,9 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
         if (!success) throw new RuntimeException("创建传感器数据失败");
 
         log.info("创建传感器数据成功: petId={}, dataId={}, activity={}", createRequest.getPetId(), sensorData.getDataId(), activity);
+
+        // [新增] 执行预警检测逻辑
+        checkAndTriggerAlerts(sensorData, lastData);
     }
 
     @Override
@@ -217,5 +232,56 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
         if (petIds.isEmpty()) return Map.of();
         List<Pet> pets = petService.listByIds(petIds);
         return pets.stream().collect(Collectors.toMap(Pet::getPetId, pet -> pet.getName() != null ? pet.getName() : "未知"));
+    }
+
+    /**
+     * [新增] 检测并触发预警
+     * @param currentData 当前接收到的数据
+     * @param lastData 数据库中最近一次的历史数据（可为 null）
+     */
+    private void checkAndTriggerAlerts(SensorData currentData, SensorData lastData) {
+        // 1. 体温检测逻辑
+        // 设定阈值：> 39 为略高，< 37 为略低
+        if (currentData.getTemperature() != null) {
+            if (currentData.getTemperature() > 39) {
+                createAlert(currentData.getPetId(), "体温异常",
+                        "检测到体温略高 (" + currentData.getTemperature() + "°C)，请注意观察。", "warning");
+            } else if (currentData.getTemperature() < 37) {
+                createAlert(currentData.getPetId(), "体温异常",
+                        "检测到体温略低 (" + currentData.getTemperature() + "°C)，请注意保暖。", "warning");
+            }
+        }
+
+        // 2. 心率波动检测逻辑
+        // 只有当存在历史数据且心率数据均有效时才进行对比
+        if (lastData != null && currentData.getHeartRate() != null && lastData.getHeartRate() != null) {
+            int diff = Math.abs(currentData.getHeartRate() - lastData.getHeartRate());
+            // 设定波动阈值为 30 bpm
+            if (diff > 30) {
+                createAlert(currentData.getPetId(), "心率波动异常",
+                        "心率短时间内波动幅度较大 (变化值: " + diff + " bpm)，请关注宠物状态。", "warning");
+            }
+        }
+    }
+
+    /**
+     * [新增] 辅助方法：构建并发送预警请求
+     */
+    private void createAlert(Integer petId, String alertType, String message, String level) {
+        try {
+            AlertCreateRequest alertRequest = AlertCreateRequest.builder()
+                    .petId(petId)
+                    .alertType(alertType)
+                    .alertMessage(message)
+                    .level(level)
+                    .createdAt(LocalDateTime.now().format(formatter))
+                    .build();
+
+            alertService.createAlert(alertRequest);
+            log.info("触发预警: petId={}, type={}", petId, alertType);
+        } catch (Exception e) {
+            // 捕获异常，确保预警失败不影响数据采集主流程
+            log.error("创建预警失败", e);
+        }
     }
 }

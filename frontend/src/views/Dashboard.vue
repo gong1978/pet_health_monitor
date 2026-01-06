@@ -641,7 +641,12 @@ const initAlertTrendChart = () => {
   }
 
   alertTrendChartInstance = echarts.init(alertTrendChart.value)
-  const trendData = getAlertTrendData()
+
+  // [核心修改] 使用后端返回的真实数据
+  // 如果后端没返回数据（比如旧缓存），则使用空数组防止报错
+  const dates = dashboardStats.value.trendDates || []
+  const criticalData = dashboardStats.value.trendCritical || []
+  const warningData = dashboardStats.value.trendWarning || []
 
   const option = {
     tooltip: {
@@ -662,25 +667,28 @@ const initAlertTrendChart = () => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: trendData.dates
+      data: dates // 使用真实日期
     },
     yAxis: {
-      type: 'value'
+      type: 'value',
+      minInterval: 1 // 保证Y轴刻度为整数
     },
     series: [
       {
         name: '严重预警',
         type: 'line',
-        stack: 'Total',
-        data: trendData.critical,
-        itemStyle: { color: '#ff6b6b' }
+        stack: 'Total', // 如果不想堆叠，可以去掉这行
+        data: criticalData, // 使用真实严重预警数据
+        itemStyle: { color: '#ff6b6b' },
+        areaStyle: { opacity: 0.1 } // 增加一点区域填充更好看
       },
       {
         name: '普通预警',
         type: 'line',
         stack: 'Total',
-        data: trendData.warning,
-        itemStyle: { color: '#ffa500' }
+        data: warningData, // 使用真实普通预警数据
+        itemStyle: { color: '#ffa500' },
+        areaStyle: { opacity: 0.1 }
       }
     ]
   }
@@ -723,24 +731,6 @@ const getAlertLevelStats = () => {
   ]
 }
 
-// 获取预警趋势数据（模拟数据）
-const getAlertTrendData = () => {
-  const dates = []
-  const critical = []
-  const warning = []
-
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date()
-    date.setDate(date.getDate() - i)
-    dates.push(date.toLocaleDateString())
-
-    // 模拟数据
-    critical.push(Math.floor(Math.random() * 5))
-    warning.push(Math.floor(Math.random() * 10))
-  }
-
-  return { dates, critical, warning }
-}
 
 // 获取预警类型名称
 const getAlertTypeName = (type) => {

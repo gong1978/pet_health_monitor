@@ -8,9 +8,43 @@
       </template>
 
       <div class="search-form">
+        <el-form :inline="true" :model="searchForm" class="demo-form-inline">
+          <el-form-item label="宠物名字">
+            <el-input v-model="searchForm.name" placeholder="请输入宠物名字" clearable @keyup.enter="handleSearch" />
+          </el-form-item>
+          <el-form-item label="物种">
+            <el-select v-model="searchForm.species" placeholder="请选择物种" clearable style="width: 120px">
+              <el-option label="猫" value="猫" />
+              <el-option label="狗" value="狗" />
+              <el-option label="鼠" value="鼠" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="性别">
+            <el-select v-model="searchForm.gender" placeholder="请选择性别" clearable style="width: 120px">
+              <el-option label="雄性" value="雄性" />
+              <el-option label="雌性" value="雌性" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="handleSearch">查询</el-button>
+            <el-button @click="handleReset">重置</el-button>
+          </el-form-item>
+        </el-form>
       </div>
 
       <div class="table-header">
+        <div class="left-panel">
+          <el-button type="primary" :icon="Plus" @click="handleAdd">新增宠物</el-button>
+          <el-button
+              v-if="isAdmin || isVet"
+              type="danger"
+              :icon="Delete"
+              @click="handleBatchDelete"
+              :disabled="multipleSelection.length === 0"
+          >
+            批量删除
+          </el-button>
+        </div>
       </div>
 
       <el-table
@@ -72,10 +106,90 @@
       </el-table>
 
       <div class="pagination">
+        <el-pagination
+            v-model:current-page="pageInfo.page"
+            v-model:page-size="pageInfo.size"
+            :total="pageInfo.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+        />
       </div>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" :close-on-click-modal="false">
+      <el-form :model="petForm" :rules="rules" ref="petFormRef" label-width="100px">
+        <el-form-item label="宠物名字" prop="name">
+          <el-input v-model="petForm.name" placeholder="请输入宠物名字" />
+        </el-form-item>
+
+        <el-form-item label="物种" prop="species">
+          <el-select v-model="petForm.species" placeholder="请选择物种" style="width: 100%">
+            <el-option label="猫" value="猫" />
+            <el-option label="狗" value="狗" />
+            <el-option label="鼠" value="鼠" />
+            <el-option label="其他" value="其他" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="品种" prop="breed">
+          <el-input v-model="petForm.breed" placeholder="请输入品种（如：金毛、英短）" />
+        </el-form-item>
+
+        <el-form-item label="性别" prop="gender">
+          <el-radio-group v-model="petForm.gender">
+            <el-radio label="雄性">雄性</el-radio>
+            <el-radio label="雌性">雌性</el-radio>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-row>
+          <el-col :span="12">
+            <el-form-item label="年龄" prop="age">
+              <el-input-number v-model="petForm.age" :min="0" :max="30" placeholder="岁" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="体重(kg)" prop="weight">
+              <el-input-number v-model="petForm.weight" :min="0" :precision="2" :step="0.1" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="疫苗记录" prop="vaccineRecord">
+          <el-input type="textarea" v-model="petForm.vaccineRecord" rows="3" placeholder="记录疫苗接种情况" />
+        </el-form-item>
+
+        <el-form-item label="宠物照片">
+          <el-upload
+              class="upload-demo"
+              :action="uploadAction"
+              :headers="uploadHeaders"
+              :show-file-list="false"
+              :before-upload="handleBeforeUpload"
+              :on-success="handleUploadSuccess"
+              :on-error="handleUploadError"
+          >
+            <div v-if="petForm.imageUrl" class="image-preview">
+              <img :src="getImageUrl(petForm.imageUrl)" style="width: 100px; height: 100px; border-radius: 4px; object-fit: cover;" />
+              <div class="image-overlay">
+                <el-icon color="#fff" size="20"><Plus /></el-icon>
+              </div>
+            </div>
+            <el-button v-else type="primary" size="small">点击上传照片</el-button>
+            <template #tip>
+              <div class="el-upload__tip">只能上传 jpg/png 文件，且不超过 10MB</div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
+        </span>
+      </template>
     </el-dialog>
 
     <el-dialog v-model="detailDialogVisible" title="宠物详情" width="500px">
