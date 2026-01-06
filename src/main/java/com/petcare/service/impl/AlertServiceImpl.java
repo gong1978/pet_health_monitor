@@ -238,6 +238,16 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
             throw new RuntimeException("预警等级只能是 warning 或 critical");
         }
 
+        // [新增] 解析预警时间逻辑
+        LocalDateTime createdAt = null;
+        if (StringUtils.hasText(updateRequest.getCreatedAt())) {
+            try {
+                createdAt = LocalDateTime.parse(updateRequest.getCreatedAt(), formatter);
+            } catch (DateTimeParseException e) {
+                throw new RuntimeException("时间格式错误，请使用 yyyy-MM-dd HH:mm:ss");
+            }
+        }
+
         // 构建更新实体
         Alert alert = Alert.builder()
                 .alertId(updateRequest.getAlertId())
@@ -247,6 +257,7 @@ public class AlertServiceImpl extends ServiceImpl<AlertMapper, Alert> implements
                 .level(updateRequest.getLevel())
                 .isResolved(updateRequest.getIsResolved())
                 .resolvedBy(updateRequest.getResolvedBy())
+                .createdAt(createdAt) // [新增] 设置解析后的时间
                 .build();
 
         boolean success = this.updateById(alert);

@@ -47,4 +47,9 @@ public class AlertUpdateRequest {
      * 处理用户ID（管理员ID）
      */
     private Integer resolvedBy;
+
+    /**
+     * [新增] 预警时间
+     */
+    private String createdAt;
 }
