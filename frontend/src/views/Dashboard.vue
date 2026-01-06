@@ -534,53 +534,33 @@ const fetchMyPets = async () => {
   }
 }
 
-// 位置：src/views/Dashboard.vue
-
-// 获取宠物主人的预警数据（最终修复版）
 const fetchMyAlerts = async () => {
   myAlertsLoading.value = true
   try {
-    // ---------------------------------------------------------
-    // 💡 核心改动：我们不再从前端传 petId，也不在前端做 filter。
-    // 只要参数里没有 petId，后端 AlertServiceImpl 会自动执行：
-    // "查询当前用户的所有宠物，并返回它们的预警"
-    // ---------------------------------------------------------
-
-    // 1. 构造最精简的参数
-    const rawParams = {
+    // 1. 显式定义参数，不给 petId 留坑
+    const params = {
       page: 1,
-      size: 5,           // 首页只显示前5条
-      isResolved: false  // 只看“未处理”的
-      // petId: null     // 故意不写 petId，或者设为 null
+      size: 50, // 查多一点
+      isResolved: false
     }
 
-    // 2. 双重保险：清洗参数 (把所有空字符串 "" 变成 undefined)
-    const params = {}
-    Object.keys(rawParams).forEach(key => {
-      const val = rawParams[key]
-      if (val !== '' && val !== null && val !== undefined) {
-        params[key] = val
+    // 2. 万能清洗循环：把对象里所有是 "" 的 key 全部删掉
+    Object.keys(params).forEach(key => {
+      if (params[key] === '') {
+        delete params[key]
       }
     })
 
-    // 3. 发送请求
-    // 此时发送的 URL 是: /api/alerts/page?page=1&size=5&isResolved=false
-    // 后端收到后：
-    // -> 发现 petId 是 null
-    // -> 识别用户是 gyh
-    // -> 查出 gyh 有 [汤姆, 杰瑞]
-    // -> 返回这两只猫的预警
+    console.log('gyh 正在发送的最终请求参数:', params) // 调试用
+
     const response = await getAlerts(params)
 
     if (response.code === 200) {
       myAlerts.value = response.data.records
+      console.log('获取到的数据条数:', myAlerts.value.length)
     }
   } catch (error) {
     console.error('获取我的预警数据失败:', error)
-    // 屏蔽 400 报错弹窗，避免刷屏
-    if (!error.response || error.response.status !== 400) {
-      // ElMessage.error('无法加载预警通知') // 可选：如果觉得烦可以注释掉
-    }
   } finally {
     myAlertsLoading.value = false
   }
