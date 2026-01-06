@@ -288,11 +288,12 @@ const fetchPetList = async () => {
   }
 }
 
+// 获取预警列表（最终修复版）
 // 获取预警列表（修复版）
 const fetchAlerts = async () => {
   loading.value = true
   try {
-    // 1. 准备原始参数
+    // 1. 定义原始参数
     const rawParams = {
       page: pageInfo.page,
       size: pageInfo.size,
@@ -304,16 +305,18 @@ const fetchAlerts = async () => {
       endTime: searchForm.endTime
     }
 
-    // 2. [核心修复] 清洗参数：把空字符串 "" 剔除掉
+    // 2. [关键修复]：创建一个新对象，只放入有效值
+    // 这一步会把 petId="" 这种情况过滤掉，不发给后端
     const params = {}
     for (const key in rawParams) {
-      // 只有当值不是空字符串、不是null、不是undefined时，才发送
-      if (rawParams[key] !== '' && rawParams[key] !== null && rawParams[key] !== undefined) {
-        params[key] = rawParams[key]
+      const val = rawParams[key]
+      // 只有当值不为空字符串、不为null、不为undefined时，才放入 params
+      if (val !== '' && val !== null && val !== undefined) {
+        params[key] = val
       }
     }
 
-    // 3. 发送干净的请求
+    // 3. 发送清洗后的参数
     const response = await getAlerts(params)
 
     if (response.code === 200) {
@@ -325,8 +328,7 @@ const fetchAlerts = async () => {
   } catch (error) {
     console.error('Fetch alerts error:', error)
     if (error.response && error.response.status === 400) {
-      // 如果还报400，说明代码没保存成功或者没生效
-      console.error("400错误详情:", error.response)
+      console.warn('参数格式错误，请检查是否已保存修改代码')
     }
     tableData.value = []
     pageInfo.total = 0
