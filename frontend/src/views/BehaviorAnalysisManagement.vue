@@ -116,6 +116,7 @@
                 :preview-src-list="[getImageUrl(row.imageUrl)]"
                 style="width: 50px; height: 50px; border-radius: 4px;"
                 fit="cover"
+                preview-teleported
             >
               <template #error>
                 <div class="image-slot" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; background: #f5f7fa; color: #909399;">
@@ -326,6 +327,7 @@
             :src="getImageUrl(viewBehavior.imageUrl)"
             :preview-src-list="[getImageUrl(viewBehavior.imageUrl)]"
             style="max-width: 300px; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);"
+            preview-teleported
         />
       </div>
       <el-descriptions :column="2" border>
@@ -602,8 +604,8 @@ const handleCurrentChange = (page) => { pageInfo.page = page; fetchBehaviorAnaly
 const handleSelectionChange = (selection) => multipleSelection.value = selection
 
 const handleAdd = () => {
-  isEdit.value = false;
-  resetForm();
+  isEdit.value = false
+  resetForm()
   dialogVisible.value = true
 }
 
