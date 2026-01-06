@@ -240,44 +240,77 @@ public class SensorDataServiceImpl extends ServiceImpl<SensorDataMapper, SensorD
      * @param currentData 当前接收到的数据
      * @param lastData 数据库中最近一次的历史数据（可为 null）
      */
+    /**
+     * 检测并触发预警（分级版）
+     * 包含：体温、心率、活动量的警告(Warning)和严重(Critical)分级判断
+     */
     private void checkAndTriggerAlerts(SensorData currentData, SensorData lastData) {
         Integer petId = currentData.getPetId();
         LocalDateTime now = LocalDateTime.now();
 
-        // 1. 体温检测逻辑
+        // 1. 体温检测逻辑 (Temperature)
+        // 正常范围: 38.0 - 39.0 (假设)
         if (currentData.getTemperature() != null) {
-            // 阈值：> 39.5 为略高
-            if (currentData.getTemperature() > 39.5) {
-                createAlert(petId, "体温异常",
-                        "检测到体温过高 (" + currentData.getTemperature() + "°C)，请注意观察是否中暑或发烧。", "warning");
+            float temp = currentData.getTemperature();
+
+            // --- 严重级别 (Critical) ---
+            if (temp >= 40.0) {
+                createAlert(petId, "体温严重过高",
+                        "检测到体温达到 " + temp + "°C，属于高烧状态，请立即就医！", "critical");
+            } else if (temp <= 36.0) {
+                createAlert(petId, "体温严重偏低",
+                        "检测到体温降至 " + temp + "°C，可能有失温风险，请立即处理！", "critical");
             }
-            // 阈值：< 37.0 为略低
-            else if (currentData.getTemperature() < 37.0) {
-                createAlert(petId, "体温异常",
-                        "检测到体温偏低 (" + currentData.getTemperature() + "°C)，请注意保暖。", "warning");
+            // --- 警告级别 (Warning) ---
+            else if (temp > 39.0) {
+                createAlert(petId, "体温略高",
+                        "检测到体温略高 (" + temp + "°C)，超出正常范围，请密切观察。", "warning");
+            } else if (temp < 38.0) {
+                createAlert(petId, "体温略低",
+                        "检测到体温略低 (" + temp + "°C)，请注意保暖。", "warning");
             }
         }
 
-        // 2. 心率波动检测逻辑
-        if (lastData != null && currentData.getHeartRate() != null && lastData.getHeartRate() != null) {
-            int diff = Math.abs(currentData.getHeartRate() - lastData.getHeartRate());
-            // 设定波动阈值为 30 bpm
-            if (diff > 30) {
-                createAlert(petId, "心率波动异常",
-                        "心率短时间内波动幅度较大 (变化值: " + diff + " bpm)，请关注宠物状态。", "warning");
+        // 2. 心率检测逻辑 (Heart Rate)
+        if (currentData.getHeartRate() != null) {
+            int hr = currentData.getHeartRate();
+
+            // --- 绝对值检测 ---
+            if (hr > 180) {
+                createAlert(petId, "心率极速", "当前心率高达 " + hr + " bpm，处于极度危险水平！", "critical");
+            } else if (hr < 40) {
+                createAlert(petId, "心率过缓", "当前心率仅为 " + hr + " bpm，心跳过慢！", "critical");
+            }
+
+            // --- 波动检测 (需要历史数据) ---
+            if (lastData != null && lastData.getHeartRate() != null) {
+                int diff = Math.abs(hr - lastData.getHeartRate());
+
+                if (diff > 50) {
+                    createAlert(petId, "心率剧烈波动",
+                            "心率短时间内发生剧烈变化 (波动: " + diff + " bpm)，建议检查宠物状态。", "critical");
+                } else if (diff > 20) {
+                    createAlert(petId, "心率波动异常",
+                            "心率出现明显波动 (波动: " + diff + " bpm)，请注意。", "warning");
+                }
             }
         }
 
-        // 3. 活动量检测逻辑 (低活动量预警)
+        // 3. 活动量检测逻辑 (Activity)
         if (currentData.getActivity() != null) {
-            // 仅在白天 (8点 - 20点) 检测低活动量，避免夜间睡觉时误报
+            // 仅在白天 (8点 - 20点) 检测
             int hour = currentData.getCollectedAt() != null ? currentData.getCollectedAt().getHour() : now.getHour();
 
             if (hour >= 8 && hour <= 20) {
-                // 如果活动量低于 50 (假设单位为步数或活跃指数)
-                if (currentData.getActivity() < 50) {
-                    createAlert(petId, "活动量异常",
-                            "监测到白天活动量极低 (" + currentData.getActivity() + ")，可能存在身体不适或精神萎靡。", "warning");
+                // 如果活动量几乎为0
+                if (currentData.getActivity() < 10) {
+                    createAlert(petId, "长时间静止",
+                            "监测到白天活动量近乎停止 (" + currentData.getActivity() + ")，需确认宠物是否安全。", "critical");
+                }
+                // 如果活动量较低
+                else if (currentData.getActivity() < 50) {
+                    createAlert(petId, "活动量偏低",
+                            "监测到白天活动量较低 (" + currentData.getActivity() + ")，可能精神不佳。", "warning");
                 }
             }
         }

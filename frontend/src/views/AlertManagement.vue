@@ -292,14 +292,46 @@ const fetchPetList = async () => {
 const fetchAlerts = async () => {
   loading.value = true
   try {
-    const params = { ...searchForm, page: pageInfo.page, size: pageInfo.size }
+    // 1. 构造原始参数
+    const params = {
+      page: pageInfo.page,
+      size: pageInfo.size,
+      petId: searchForm.petId,
+      alertType: searchForm.alertType,
+      // 注意：后端通常期望 Boolean 或 Integer，空字符串会导致 400
+      isResolved: searchForm.isResolved,
+      startTime: searchForm.startTime,
+      endTime: searchForm.endTime
+    }
+
+    // [核心修复] 2. 过滤掉空字符串("")和 null/undefined 值
+    // 防止将 "" 发送给后端的 Integer/Boolean/Date 字段引发 400 错误
+    Object.keys(params).forEach(key => {
+      if (params[key] === '' || params[key] === null || params[key] === undefined) {
+        delete params[key]
+      }
+    })
+
+    // 3. 发送请求
     const response = await getAlerts(params)
+
     if (response.code === 200) {
       tableData.value = response.data.records
       pageInfo.total = response.data.total
+    } else {
+      // 只有非200才提示错误，避免清空列表
+      ElMessage.error(response.message || '获取预警列表失败')
     }
   } catch (error) {
-    ElMessage.error(error.message || '获取预警列表失败')
+    console.error('Fetch alerts error:', error)
+    // 400 错误通常在这里被捕获
+    if(error.response && error.response.status === 400) {
+      ElMessage.error('请求参数格式错误(400)，请检查搜索条件')
+    } else {
+      ElMessage.error('系统异常，无法加载数据')
+    }
+    tableData.value = []
+    pageInfo.total = 0
   } finally {
     loading.value = false
   }
