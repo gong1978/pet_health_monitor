@@ -98,7 +98,7 @@
         <el-table-column prop="resolverName" label="处理人员" width="120">
           <template #default="{ row }">{{ row.resolverName || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button v-if="!row.isResolved" size="small" type="success" @click="handleResolve(row)">处理</el-button>
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>

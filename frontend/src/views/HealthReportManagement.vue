@@ -134,7 +134,7 @@
             {{ row.reviewerName || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" :width="isPetOwner ? '80' : '180'" fixed="right">
+        <el-table-column label="操作" :width="isPetOwner ? '80' : '220'" fixed="right">
           <template #default="{ row }">
             <el-button v-if="isAdmin || isVet" size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" @click="handleView(row)">详情</el-button>

@@ -125,7 +125,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="collectedAt" label="采集时间" width="160" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="handleEdit(row)">编辑</el-button>
             <el-button size="small" @click="handleView(row)">详情</el-button>

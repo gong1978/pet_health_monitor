@@ -75,7 +75,7 @@
         <el-table-column prop="answeredByName" label="回答人" width="100">
           <template #default="{ row }">{{ row.answeredByName || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button v-if="(isAdmin || isVet) && !row.answered" size="small" type="success" @click="handleAnswer(row)">回答</el-button>
             <el-button v-if="isAdmin || isVet" size="small" @click="handleEdit(row)">编辑</el-button>
@@ -353,7 +353,19 @@ onMounted(async () => {
 
 <style scoped>
 .vet-consultation-management { padding: 20px; }
-.page-container .card-header { display: flex; justify-content: space-between; align-items: center; }
+.page-container {
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    .card-title {
+      font-size: 18px;     /* 统一字体大小 */
+      font-weight: 600;    /* 统一加粗 */
+      color: #333;         /* 统一颜色 */
+    }
+  }
+}
 .search-form { background: #f8f9fa; padding: 20px; margin-bottom: 20px; border-radius: 4px; }
 .table-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
 .pagination { display: flex; justify-content: flex-end; margin-top: 20px; }
