@@ -50,7 +50,8 @@ public class SensorDataTask {
      * 任务1：生理数据模拟 (保持不变)
      * 每30分钟执行一次：为所有宠物生成模拟心率/体温
      */
-    @Scheduled(cron = "0 0/30 * * * ?") // 您的定时规则
+    @Scheduled(cron = "0 0 * * * ?")
+    // 您的定时规则
     public void generateSensorData() {
         log.info("【生理数据】开始生成模拟心率/体温数据...");
         List<Pet> pets = petService.list();
