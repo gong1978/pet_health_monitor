@@ -44,8 +44,13 @@ public class DashboardStatsResponse {
      */
     private String userName;
 
-    // [新增] 趋势图数据
+    // 趋势图数据
     private List<String> trendDates;      // 日期列表 (X轴)
     private List<Long> trendCritical;     // 严重预警数量 (Y轴1)
     private List<Long> trendWarning;      // 普通预警数量 (Y轴2)
+
+    // 全局预警分布统计字段
+    private Long criticalAlertCount; // 严重预警总数
+    private Long warningAlertCount;  // 警告预警总数
+    private Long resolvedAlertCount; // 已处理预警总数
 }

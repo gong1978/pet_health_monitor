@@ -48,38 +48,45 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
         boolean isAdminOrVet = user.getRole() != null && (user.getRole() == 1 || user.getRole() == 2);
 
         long petCount;
-        long alertCount;
+        long alertCount; // 未处理预警数
         long healthReportCount;
         long behaviorAnalysisCount;
 
-        // 定义趋势数据容器
+        // 新增统计变量
+        long criticalAlertCount = 0;
+        long warningAlertCount = 0;
+        long resolvedAlertCount = 0;
+
         List<String> trendDates = new ArrayList<>();
         List<Long> trendCritical = new ArrayList<>();
         List<Long> trendWarning = new ArrayList<>();
 
         if (isAdminOrVet) {
             petCount = petService.count();
-
-            // [修正] 管理员/兽医：只统计未处理的预警数量
+            // 首页卡片只显示未处理的
             alertCount = alertService.count(new QueryWrapper<Alert>().eq("is_resolved", false));
-
             healthReportCount = healthReportService.count();
             behaviorAnalysisCount = behaviorAnalysisService.count();
 
-            // 管理员/兽医：计算全平台最近7天预警趋势
+            // 统计全局分布数据
+            criticalAlertCount = alertService.count(new QueryWrapper<Alert>().eq("level", "critical"));
+            warningAlertCount = alertService.count(new QueryWrapper<Alert>().eq("level", "warning"));
+            resolvedAlertCount = alertService.count(new QueryWrapper<Alert>().eq("is_resolved", true));
+
             calculateAlertTrend(null, trendDates, trendCritical, trendWarning);
         } else {
             List<Integer> userPetIds = userPetService.getPetIdsByUserId(userId);
             petCount = userPetIds.size();
-
-            // [修正] 普通用户：只统计自己名下未处理的预警数量 (逻辑见下方 getUserPetAlertCount 方法)
-            alertCount = getUserPetAlertCount(userPetIds);
-
+            alertCount = getUserPetAlertCount(userPetIds); // 这个方法里已经加了未处理过滤
             healthReportCount = getUserPetHealthReportCount(userPetIds);
             behaviorAnalysisCount = getUserPetBehaviorAnalysisCount(userPetIds);
 
-            // 普通用户：计算自己宠物最近7天预警趋势
+            // 统计个人宠物的全局分布
             if (!userPetIds.isEmpty()) {
+                criticalAlertCount = alertService.count(new QueryWrapper<Alert>().in("pet_id", userPetIds).eq("level", "critical"));
+                warningAlertCount = alertService.count(new QueryWrapper<Alert>().in("pet_id", userPetIds).eq("level", "warning"));
+                resolvedAlertCount = alertService.count(new QueryWrapper<Alert>().in("pet_id", userPetIds).eq("is_resolved", true));
+
                 calculateAlertTrend(userPetIds, trendDates, trendCritical, trendWarning);
             }
         }
@@ -94,6 +101,10 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
                 .trendDates(trendDates)
                 .trendCritical(trendCritical)
                 .trendWarning(trendWarning)
+                // [新增] 注入分布数据
+                .criticalAlertCount(criticalAlertCount)
+                .warningAlertCount(warningAlertCount)
+                .resolvedAlertCount(resolvedAlertCount)
                 .build();
     }
 

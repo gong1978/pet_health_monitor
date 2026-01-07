@@ -703,9 +703,13 @@ const initCharts = () => {
 
 // 获取预警等级统计
 const getAlertLevelStats = () => {
-  const criticalCount = recentAlerts.value.filter(alert => alert.level === 'critical').length
-  const warningCount = recentAlerts.value.filter(alert => alert.level === 'warning').length
-  const resolvedCount = recentAlerts.value.filter(alert => alert.isResolved).length
+  // 不再依赖 recentAlerts (只含10条)，而是使用后端返回的全局统计
+  // 如果 dashboardStats 还没加载完，就给 0
+  const stats = dashboardStats.value || {}
+
+  const criticalCount = stats.criticalAlertCount || 0
+  const warningCount = stats.warningAlertCount || 0
+  const resolvedCount = stats.resolvedAlertCount || 0
 
   return [
     { value: criticalCount, name: '严重预警' },
