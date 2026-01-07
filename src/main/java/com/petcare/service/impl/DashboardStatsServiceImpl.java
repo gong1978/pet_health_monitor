@@ -52,27 +52,33 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
         long healthReportCount;
         long behaviorAnalysisCount;
 
-        // [新增] 定义趋势数据容器
+        // 定义趋势数据容器
         List<String> trendDates = new ArrayList<>();
         List<Long> trendCritical = new ArrayList<>();
         List<Long> trendWarning = new ArrayList<>();
 
         if (isAdminOrVet) {
             petCount = petService.count();
-            alertCount = alertService.count();
+
+            // [修正] 管理员/兽医：只统计未处理的预警数量
+            alertCount = alertService.count(new QueryWrapper<Alert>().eq("is_resolved", false));
+
             healthReportCount = healthReportService.count();
             behaviorAnalysisCount = behaviorAnalysisService.count();
 
-            // [新增] 管理员/兽医：计算全平台最近7天预警趋势
+            // 管理员/兽医：计算全平台最近7天预警趋势
             calculateAlertTrend(null, trendDates, trendCritical, trendWarning);
         } else {
             List<Integer> userPetIds = userPetService.getPetIdsByUserId(userId);
             petCount = userPetIds.size();
+
+            // [修正] 普通用户：只统计自己名下未处理的预警数量 (逻辑见下方 getUserPetAlertCount 方法)
             alertCount = getUserPetAlertCount(userPetIds);
+
             healthReportCount = getUserPetHealthReportCount(userPetIds);
             behaviorAnalysisCount = getUserPetBehaviorAnalysisCount(userPetIds);
 
-            // [新增] 普通用户：计算自己宠物最近7天预警趋势（虽然普通用户首页可能不显示图表，但为了接口统一还是返回）
+            // 普通用户：计算自己宠物最近7天预警趋势
             if (!userPetIds.isEmpty()) {
                 calculateAlertTrend(userPetIds, trendDates, trendCritical, trendWarning);
             }
@@ -85,7 +91,6 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
                 .behaviorAnalysisCount(behaviorAnalysisCount)
                 .userRole(user.getRole())
                 .userName(user.getFullName() != null ? user.getFullName() : user.getUsername())
-                // [新增] 注入趋势数据
                 .trendDates(trendDates)
                 .trendCritical(trendCritical)
                 .trendWarning(trendWarning)
@@ -93,7 +98,7 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
     }
 
     /**
-     * [新增] 计算最近7天的预警趋势
+     * 计算最近7天的预警趋势
      */
     private void calculateAlertTrend(List<Integer> petIds, List<String> dates, List<Long> criticals, List<Long> warnings) {
         // 1. 获取7天前的时间点
@@ -101,7 +106,7 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
         LocalDate sevenDaysAgo = today.minusDays(6); // 包括今天共7天
         LocalDateTime startDateTime = sevenDaysAgo.atStartOfDay();
 
-        // 2. 查询时间段内的所有 Alert
+        // 2. 查询时间段内的所有 Alert (趋势图通常显示历史记录，所以这里一般不加 is_resolved 过滤，看历史发生情况)
         QueryWrapper<Alert> wrapper = new QueryWrapper<>();
         wrapper.ge("created_at", startDateTime);
         if (petIds != null && !petIds.isEmpty()) {
@@ -110,7 +115,6 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
         List<Alert> recentAlerts = alertService.list(wrapper);
 
         // 3. 按日期 + 等级 分组统计
-        // Map<日期字符串, Map<等级, 数量>>
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM-dd");
 
         // 预处理数据：将 Alert 列表转为 Map 便于查找
@@ -136,15 +140,26 @@ public class DashboardStatsServiceImpl implements DashboardStatsService {
         }
     }
 
-    // ... (保留原有的 getUserPetAlertCount 等辅助方法) ...
+    // ----------------- 辅助方法 -----------------
+
+    /**
+     * [修正] 获取指定宠物列表的未处理预警数量
+     */
     private long getUserPetAlertCount(List<Integer> petIds) {
         if (petIds == null || petIds.isEmpty()) return 0L;
-        return alertService.count(new QueryWrapper<Alert>().in("pet_id", petIds));
+
+        QueryWrapper<Alert> queryWrapper = new QueryWrapper<>();
+        queryWrapper.in("pet_id", petIds);
+        queryWrapper.eq("is_resolved", false); // 关键：只统计未处理的
+
+        return alertService.count(queryWrapper);
     }
+
     private long getUserPetHealthReportCount(List<Integer> petIds) {
         if (petIds == null || petIds.isEmpty()) return 0L;
         return healthReportService.count(new QueryWrapper<HealthReport>().in("pet_id", petIds));
     }
+
     private long getUserPetBehaviorAnalysisCount(List<Integer> petIds) {
         if (petIds == null || petIds.isEmpty()) return 0L;
         return behaviorAnalysisService.count(new QueryWrapper<BehaviorAnalysis>().in("pet_id", petIds));

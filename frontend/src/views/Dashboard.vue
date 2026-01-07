@@ -487,7 +487,7 @@ const fetchDashboardStats = async () => {
 const fetchRecentAlerts = async () => {
   alertsLoading.value = true
   try {
-    const response = await getAlerts({ page: 1, size: 5 })
+    const response = await getAlerts({ page: 1, size: 10 })
     if (response.code === 200) {
       recentAlerts.value = response.data.records
       // 获取数据后初始化图表
